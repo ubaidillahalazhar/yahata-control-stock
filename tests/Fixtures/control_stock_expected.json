@@ -1,0 +1,1633 @@
+{
+    "source": "yahata tools (1).xlsx / sheet \"control stock\" (nilai cache Excel) — forecast_avg & turunannya dihitung ulang dengan ROUND(AVERAGEIF(M:Q,\">0\"),0)",
+    "rows": [
+        {
+            "excel_row": 3,
+            "tools_name_yes": "CBP136 1# COK COLLAR 19.9",
+            "input": {
+                "current_stock": 4,
+                "life_time": 1000000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    0.41,
+                    0.39,
+                    0.39,
+                    0.39,
+                    0
+                ],
+                "monthly_balance": [
+                    3.59,
+                    3.61,
+                    3.61,
+                    3.61,
+                    4
+                ],
+                "tooling_need_a": 0.4,
+                "safety_stock_lead_time_b": 1,
+                "safety_stock_fluct_c": 0.08000000000000002,
+                "safety_stock_add_d": 0,
+                "min_stock_e": 1,
+                "max_total_stand_by": 2,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 1000000,
+                "est_prod_qty_stand_by": 2000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 4,
+            "tools_name_yes": "BF-01 CBP-1361# CUT OF DIE983951-09011-CCOLLAR 19.9",
+            "input": {
+                "current_stock": 1,
+                "life_time": 1000000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    0.41,
+                    0.39,
+                    0.39,
+                    0.39,
+                    0
+                ],
+                "monthly_balance": [
+                    0.59,
+                    0.61,
+                    0.61,
+                    0.61,
+                    1
+                ],
+                "tooling_need_a": 0.4,
+                "safety_stock_lead_time_b": 1,
+                "safety_stock_fluct_c": 0.08000000000000002,
+                "safety_stock_add_d": 0,
+                "min_stock_e": 1,
+                "max_total_stand_by": 2,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 1000000,
+                "est_prod_qty_stand_by": 2000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 5,
+            "tools_name_yes": "CBP136 1# CUK COLLAR 19.9",
+            "input": {
+                "current_stock": 1,
+                "life_time": 200000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    2.05,
+                    1.97,
+                    1.97,
+                    1.97,
+                    0
+                ],
+                "monthly_balance": [
+                    -1.05,
+                    -0.97,
+                    -0.97,
+                    -0.97,
+                    1
+                ],
+                "tooling_need_a": 1.99,
+                "safety_stock_lead_time_b": 3,
+                "safety_stock_fluct_c": 0.398,
+                "safety_stock_add_d": 1,
+                "min_stock_e": 3,
+                "max_total_stand_by": 5,
+                "status_info": "ORDER",
+                "est_prod_qty_min": 600000,
+                "est_prod_qty_stand_by": 1000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 6,
+            "tools_name_yes": "CBP136 2# CUK COLLAR 19.9",
+            "input": {
+                "current_stock": 4,
+                "life_time": 200000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    2.05,
+                    1.97,
+                    1.97,
+                    1.97,
+                    0
+                ],
+                "monthly_balance": [
+                    1.95,
+                    2.03,
+                    2.03,
+                    2.03,
+                    4
+                ],
+                "tooling_need_a": 1.99,
+                "safety_stock_lead_time_b": 3,
+                "safety_stock_fluct_c": 0.398,
+                "safety_stock_add_d": 1,
+                "min_stock_e": 3,
+                "max_total_stand_by": 5,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 600000,
+                "est_prod_qty_stand_by": 1000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 7,
+            "tools_name_yes": "CBP136 3# CUK COLLAR 19.9",
+            "input": {
+                "current_stock": 2,
+                "life_time": 200000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    2.05,
+                    1.97,
+                    1.97,
+                    1.97,
+                    0
+                ],
+                "monthly_balance": [
+                    -0.05,
+                    0.03,
+                    0.03,
+                    0.03,
+                    2
+                ],
+                "tooling_need_a": 1.99,
+                "safety_stock_lead_time_b": 3,
+                "safety_stock_fluct_c": 0.398,
+                "safety_stock_add_d": 1,
+                "min_stock_e": 3,
+                "max_total_stand_by": 5,
+                "status_info": "ORDER",
+                "est_prod_qty_min": 600000,
+                "est_prod_qty_stand_by": 1000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 8,
+            "tools_name_yes": "CBP136 4# 5# CUK COLLAR 19.9",
+            "input": {
+                "current_stock": 3,
+                "life_time": 200000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    2.05,
+                    1.97,
+                    1.97,
+                    1.97,
+                    0
+                ],
+                "monthly_balance": [
+                    0.95,
+                    1.03,
+                    1.03,
+                    1.03,
+                    3
+                ],
+                "tooling_need_a": 1.99,
+                "safety_stock_lead_time_b": 3,
+                "safety_stock_fluct_c": 0.398,
+                "safety_stock_add_d": 1,
+                "min_stock_e": 3,
+                "max_total_stand_by": 5,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 600000,
+                "est_prod_qty_stand_by": 1000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 9,
+            "tools_name_yes": "CBP136 6# CUK COLLAR 19.9",
+            "input": {
+                "current_stock": 4,
+                "life_time": 200000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    2.05,
+                    1.97,
+                    1.97,
+                    1.97,
+                    0
+                ],
+                "monthly_balance": [
+                    1.95,
+                    2.03,
+                    2.03,
+                    2.03,
+                    4
+                ],
+                "tooling_need_a": 1.99,
+                "safety_stock_lead_time_b": 3,
+                "safety_stock_fluct_c": 0.398,
+                "safety_stock_add_d": 1,
+                "min_stock_e": 3,
+                "max_total_stand_by": 5,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 600000,
+                "est_prod_qty_stand_by": 1000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 10,
+            "tools_name_yes": "BF-01 CBP-1361# DIE983951-09011-CCOLLAR 19.9",
+            "input": {
+                "current_stock": 2,
+                "life_time": 600000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 60
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    0.68,
+                    0.66,
+                    0.66,
+                    0.66,
+                    0
+                ],
+                "monthly_balance": [
+                    1.32,
+                    1.34,
+                    1.34,
+                    1.34,
+                    2
+                ],
+                "tooling_need_a": 0.66,
+                "safety_stock_lead_time_b": 2,
+                "safety_stock_fluct_c": 0.132,
+                "safety_stock_add_d": 0,
+                "min_stock_e": 1,
+                "max_total_stand_by": 3,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 600000,
+                "est_prod_qty_stand_by": 1800000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 11,
+            "tools_name_yes": "CBP136 1# KOP COLLAR 19.9",
+            "input": {
+                "current_stock": 7,
+                "life_time": 200000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    2.05,
+                    1.97,
+                    1.97,
+                    1.97,
+                    0
+                ],
+                "monthly_balance": [
+                    4.95,
+                    5.03,
+                    5.03,
+                    5.03,
+                    7
+                ],
+                "tooling_need_a": 1.99,
+                "safety_stock_lead_time_b": 3,
+                "safety_stock_fluct_c": 0.398,
+                "safety_stock_add_d": 1,
+                "min_stock_e": 3,
+                "max_total_stand_by": 5,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 600000,
+                "est_prod_qty_stand_by": 1000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 12,
+            "tools_name_yes": "BF-01 CBP-1361# 2# 3# DIE SPACER L-90983951-09011-CCOLLAR 19.9",
+            "input": {
+                "current_stock": 3,
+                "life_time": 500000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    0.82,
+                    0.79,
+                    0.79,
+                    0.79,
+                    0
+                ],
+                "monthly_balance": [
+                    2.18,
+                    2.21,
+                    2.21,
+                    2.21,
+                    3
+                ],
+                "tooling_need_a": 0.8,
+                "safety_stock_lead_time_b": 2,
+                "safety_stock_fluct_c": 0.16000000000000003,
+                "safety_stock_add_d": 0,
+                "min_stock_e": 1,
+                "max_total_stand_by": 3,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 500000,
+                "est_prod_qty_stand_by": 1500000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 13,
+            "tools_name_yes": "BF-01 CBP-1361# 2# 3# KO EJECTOR 983951-09011-CCOLLAR 19.9",
+            "input": {
+                "current_stock": 3,
+                "life_time": 500000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    0.82,
+                    0.79,
+                    0.79,
+                    0.79,
+                    0
+                ],
+                "monthly_balance": [
+                    2.18,
+                    2.21,
+                    2.21,
+                    2.21,
+                    3
+                ],
+                "tooling_need_a": 0.8,
+                "safety_stock_lead_time_b": 2,
+                "safety_stock_fluct_c": 0.16000000000000003,
+                "safety_stock_add_d": 0,
+                "min_stock_e": 1,
+                "max_total_stand_by": 3,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 500000,
+                "est_prod_qty_stand_by": 1500000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 14,
+            "tools_name_yes": "CBP136 1# PPN COLLAR 19.9",
+            "input": {
+                "current_stock": 6,
+                "life_time": 150000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    2.74,
+                    2.62,
+                    2.62,
+                    2.62,
+                    0
+                ],
+                "monthly_balance": [
+                    3.26,
+                    3.38,
+                    3.38,
+                    3.38,
+                    6
+                ],
+                "tooling_need_a": 2.65,
+                "safety_stock_lead_time_b": 4,
+                "safety_stock_fluct_c": 0.53,
+                "safety_stock_add_d": 1,
+                "min_stock_e": 4,
+                "max_total_stand_by": 6,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 600000,
+                "est_prod_qty_stand_by": 900000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 15,
+            "tools_name_yes": "CBP136 2# DIE COLLAR 19.9",
+            "input": {
+                "current_stock": 1,
+                "life_time": 2000000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 60
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    0.21,
+                    0.2,
+                    0.2,
+                    0.2,
+                    0
+                ],
+                "monthly_balance": [
+                    0.79,
+                    0.8,
+                    0.8,
+                    0.8,
+                    1
+                ],
+                "tooling_need_a": 0.2,
+                "safety_stock_lead_time_b": 1,
+                "safety_stock_fluct_c": 0.04000000000000001,
+                "safety_stock_add_d": 0,
+                "min_stock_e": 1,
+                "max_total_stand_by": 2,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 2000000,
+                "est_prod_qty_stand_by": 4000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 16,
+            "tools_name_yes": "BF-01 CBP-1362# KO PIN983951-09011-CCOLLAR 19.9",
+            "input": {
+                "current_stock": 8,
+                "life_time": 200000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    2.05,
+                    1.97,
+                    1.97,
+                    1.97,
+                    0
+                ],
+                "monthly_balance": [
+                    5.95,
+                    6.03,
+                    6.03,
+                    6.03,
+                    8
+                ],
+                "tooling_need_a": 1.99,
+                "safety_stock_lead_time_b": 3,
+                "safety_stock_fluct_c": 0.398,
+                "safety_stock_add_d": 1,
+                "min_stock_e": 3,
+                "max_total_stand_by": 5,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 600000,
+                "est_prod_qty_stand_by": 1000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 17,
+            "tools_name_yes": "CBP136 2# PCS COLLAR 19.9",
+            "input": {
+                "current_stock": 1,
+                "life_time": 1000000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    0.41,
+                    0.39,
+                    0.39,
+                    0.39,
+                    0
+                ],
+                "monthly_balance": [
+                    0.59,
+                    0.61,
+                    0.61,
+                    0.61,
+                    1
+                ],
+                "tooling_need_a": 0.4,
+                "safety_stock_lead_time_b": 1,
+                "safety_stock_fluct_c": 0.08000000000000002,
+                "safety_stock_add_d": 0,
+                "min_stock_e": 1,
+                "max_total_stand_by": 2,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 1000000,
+                "est_prod_qty_stand_by": 2000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 18,
+            "tools_name_yes": "CBP136 2# PPN COLLAR 19.9",
+            "input": {
+                "current_stock": 0,
+                "life_time": 150000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    2.74,
+                    2.62,
+                    2.62,
+                    2.62,
+                    0
+                ],
+                "monthly_balance": [
+                    -2.74,
+                    -2.62,
+                    -2.62,
+                    -2.62,
+                    0
+                ],
+                "tooling_need_a": 2.65,
+                "safety_stock_lead_time_b": 4,
+                "safety_stock_fluct_c": 0.53,
+                "safety_stock_add_d": 1,
+                "min_stock_e": 4,
+                "max_total_stand_by": 6,
+                "status_info": "ORDER",
+                "est_prod_qty_min": 600000,
+                "est_prod_qty_stand_by": 900000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 19,
+            "tools_name_yes": "CBP136 3# DIE COLLAR 19.9",
+            "input": {
+                "current_stock": 0,
+                "life_time": 500000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 60
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    0.82,
+                    0.79,
+                    0.79,
+                    0.79,
+                    0
+                ],
+                "monthly_balance": [
+                    -0.82,
+                    -0.79,
+                    -0.79,
+                    -0.79,
+                    0
+                ],
+                "tooling_need_a": 0.8,
+                "safety_stock_lead_time_b": 3,
+                "safety_stock_fluct_c": 0.16000000000000003,
+                "safety_stock_add_d": 0,
+                "min_stock_e": 1,
+                "max_total_stand_by": 4,
+                "status_info": "ORDER",
+                "est_prod_qty_min": 500000,
+                "est_prod_qty_stand_by": 2000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 20,
+            "tools_name_yes": "BF-01 CBP-1363# KO PIN983951-09011-CCOLLAR 19.9",
+            "input": {
+                "current_stock": 5,
+                "life_time": 200000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    2.05,
+                    1.97,
+                    1.97,
+                    1.97,
+                    0
+                ],
+                "monthly_balance": [
+                    2.95,
+                    3.03,
+                    3.03,
+                    3.03,
+                    5
+                ],
+                "tooling_need_a": 1.99,
+                "safety_stock_lead_time_b": 3,
+                "safety_stock_fluct_c": 0.398,
+                "safety_stock_add_d": 1,
+                "min_stock_e": 3,
+                "max_total_stand_by": 5,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 600000,
+                "est_prod_qty_stand_by": 1000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 21,
+            "tools_name_yes": "CBP136 3# PPN COLLAR 19.9",
+            "input": {
+                "current_stock": 7,
+                "life_time": 150000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    2.74,
+                    2.62,
+                    2.62,
+                    2.62,
+                    0
+                ],
+                "monthly_balance": [
+                    4.26,
+                    4.38,
+                    4.38,
+                    4.38,
+                    7
+                ],
+                "tooling_need_a": 2.65,
+                "safety_stock_lead_time_b": 4,
+                "safety_stock_fluct_c": 0.53,
+                "safety_stock_add_d": 1,
+                "min_stock_e": 4,
+                "max_total_stand_by": 6,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 600000,
+                "est_prod_qty_stand_by": 900000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 22,
+            "tools_name_yes": "CBP136 4# DIE COLLAR 19.9",
+            "input": {
+                "current_stock": 1,
+                "life_time": 700000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 60
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    0.59,
+                    0.56,
+                    0.56,
+                    0.56,
+                    0
+                ],
+                "monthly_balance": [
+                    0.41,
+                    0.44,
+                    0.44,
+                    0.44,
+                    1
+                ],
+                "tooling_need_a": 0.57,
+                "safety_stock_lead_time_b": 2,
+                "safety_stock_fluct_c": 0.11399999999999999,
+                "safety_stock_add_d": 0,
+                "min_stock_e": 1,
+                "max_total_stand_by": 3,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 700000,
+                "est_prod_qty_stand_by": 2100000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 23,
+            "tools_name_yes": "CBP136 4# DSP COLLAR 19.9",
+            "input": {
+                "current_stock": 2,
+                "life_time": 200000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    2.05,
+                    1.97,
+                    1.97,
+                    1.97,
+                    0
+                ],
+                "monthly_balance": [
+                    -0.05,
+                    0.03,
+                    0.03,
+                    0.03,
+                    2
+                ],
+                "tooling_need_a": 1.99,
+                "safety_stock_lead_time_b": 3,
+                "safety_stock_fluct_c": 0.398,
+                "safety_stock_add_d": 1,
+                "min_stock_e": 3,
+                "max_total_stand_by": 5,
+                "status_info": "ORDER",
+                "est_prod_qty_min": 600000,
+                "est_prod_qty_stand_by": 1000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 24,
+            "tools_name_yes": "CBP136 4# DIESP COLLAR 19.9",
+            "input": {
+                "current_stock": 4,
+                "life_time": 150000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    2.74,
+                    2.62,
+                    2.62,
+                    2.62,
+                    0
+                ],
+                "monthly_balance": [
+                    1.26,
+                    1.38,
+                    1.38,
+                    1.38,
+                    4
+                ],
+                "tooling_need_a": 2.65,
+                "safety_stock_lead_time_b": 4,
+                "safety_stock_fluct_c": 0.53,
+                "safety_stock_add_d": 1,
+                "min_stock_e": 4,
+                "max_total_stand_by": 6,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 600000,
+                "est_prod_qty_stand_by": 900000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 25,
+            "tools_name_yes": "BF-01 CBP-1364# STRIPPER SPACER983951-09011-CCOLLAR 19.9",
+            "input": {
+                "current_stock": 0,
+                "life_time": 500000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    0.82,
+                    0.79,
+                    0.79,
+                    0.79,
+                    0
+                ],
+                "monthly_balance": [
+                    -0.82,
+                    -0.79,
+                    -0.79,
+                    -0.79,
+                    0
+                ],
+                "tooling_need_a": 0.8,
+                "safety_stock_lead_time_b": 2,
+                "safety_stock_fluct_c": 0.16000000000000003,
+                "safety_stock_add_d": 0,
+                "min_stock_e": 1,
+                "max_total_stand_by": 3,
+                "status_info": "ORDER",
+                "est_prod_qty_min": 500000,
+                "est_prod_qty_stand_by": 1500000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 26,
+            "tools_name_yes": "CBP136 5# DSPH COLLAR 19.9",
+            "input": {
+                "current_stock": 4,
+                "life_time": 1000000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    0.41,
+                    0.39,
+                    0.39,
+                    0.39,
+                    0
+                ],
+                "monthly_balance": [
+                    3.59,
+                    3.61,
+                    3.61,
+                    3.61,
+                    4
+                ],
+                "tooling_need_a": 0.4,
+                "safety_stock_lead_time_b": 1,
+                "safety_stock_fluct_c": 0.08000000000000002,
+                "safety_stock_add_d": 0,
+                "min_stock_e": 1,
+                "max_total_stand_by": 2,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 1000000,
+                "est_prod_qty_stand_by": 2000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 27,
+            "tools_name_yes": "BF-01 CBP-1364# 5# 6# DIE SPACER983951-09011-CCOLLAR 19.9",
+            "input": {
+                "current_stock": 9,
+                "life_time": 1000000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    0.41,
+                    0.39,
+                    0.39,
+                    0.39,
+                    0
+                ],
+                "monthly_balance": [
+                    8.59,
+                    8.61,
+                    8.61,
+                    8.61,
+                    9
+                ],
+                "tooling_need_a": 0.4,
+                "safety_stock_lead_time_b": 1,
+                "safety_stock_fluct_c": 0.08000000000000002,
+                "safety_stock_add_d": 0,
+                "min_stock_e": 1,
+                "max_total_stand_by": 2,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 1000000,
+                "est_prod_qty_stand_by": 2000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 28,
+            "tools_name_yes": "BF-01 CBP-1364# 5# 6# PIN BASE983951-09011-CCOLLAR 19.9",
+            "input": {
+                "current_stock": 0,
+                "life_time": 1000000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    0.41,
+                    0.39,
+                    0.39,
+                    0.39,
+                    0
+                ],
+                "monthly_balance": [
+                    -0.41,
+                    -0.39,
+                    -0.39,
+                    -0.39,
+                    0
+                ],
+                "tooling_need_a": 0.4,
+                "safety_stock_lead_time_b": 1,
+                "safety_stock_fluct_c": 0.08000000000000002,
+                "safety_stock_add_d": 0,
+                "min_stock_e": 1,
+                "max_total_stand_by": 2,
+                "status_info": "ORDER",
+                "est_prod_qty_min": 1000000,
+                "est_prod_qty_stand_by": 2000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 29,
+            "tools_name_yes": "CBP136 4# DIESPN COLLAR 19.9",
+            "input": {
+                "current_stock": 5,
+                "life_time": 1000000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    0.41,
+                    0.39,
+                    0.39,
+                    0.39,
+                    0
+                ],
+                "monthly_balance": [
+                    4.59,
+                    4.61,
+                    4.61,
+                    4.61,
+                    5
+                ],
+                "tooling_need_a": 0.4,
+                "safety_stock_lead_time_b": 1,
+                "safety_stock_fluct_c": 0.08000000000000002,
+                "safety_stock_add_d": 0,
+                "min_stock_e": 1,
+                "max_total_stand_by": 2,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 1000000,
+                "est_prod_qty_stand_by": 2000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 30,
+            "tools_name_yes": "BF-01 CBP-1364# 5# 6# KO EJECTOR ROD983951-09011-CCOLLAR 19.9",
+            "input": {
+                "current_stock": 3,
+                "life_time": 1000000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    0.41,
+                    0.39,
+                    0.39,
+                    0.39,
+                    0
+                ],
+                "monthly_balance": [
+                    2.59,
+                    2.61,
+                    2.61,
+                    2.61,
+                    3
+                ],
+                "tooling_need_a": 0.4,
+                "safety_stock_lead_time_b": 1,
+                "safety_stock_fluct_c": 0.08000000000000002,
+                "safety_stock_add_d": 0,
+                "min_stock_e": 1,
+                "max_total_stand_by": 2,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 1000000,
+                "est_prod_qty_stand_by": 2000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 31,
+            "tools_name_yes": "CBP136 4# PPN COLLAR 19.9",
+            "input": {
+                "current_stock": 4,
+                "life_time": 150000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    2.74,
+                    2.62,
+                    2.62,
+                    2.62,
+                    0
+                ],
+                "monthly_balance": [
+                    1.26,
+                    1.38,
+                    1.38,
+                    1.38,
+                    4
+                ],
+                "tooling_need_a": 2.65,
+                "safety_stock_lead_time_b": 4,
+                "safety_stock_fluct_c": 0.53,
+                "safety_stock_add_d": 1,
+                "min_stock_e": 4,
+                "max_total_stand_by": 6,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 600000,
+                "est_prod_qty_stand_by": 900000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 32,
+            "tools_name_yes": "CBP136 5# DIE COLLAR 19.9",
+            "input": {
+                "current_stock": 0,
+                "life_time": 700000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 60
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    0.59,
+                    0.56,
+                    0.56,
+                    0.56,
+                    0
+                ],
+                "monthly_balance": [
+                    -0.59,
+                    -0.56,
+                    -0.56,
+                    -0.56,
+                    0
+                ],
+                "tooling_need_a": 0.57,
+                "safety_stock_lead_time_b": 2,
+                "safety_stock_fluct_c": 0.11399999999999999,
+                "safety_stock_add_d": 0,
+                "min_stock_e": 1,
+                "max_total_stand_by": 3,
+                "status_info": "ORDER",
+                "est_prod_qty_min": 700000,
+                "est_prod_qty_stand_by": 2100000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 33,
+            "tools_name_yes": "CBP136 5# DSP COLLAR 19.9",
+            "input": {
+                "current_stock": 4,
+                "life_time": 200000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    2.05,
+                    1.97,
+                    1.97,
+                    1.97,
+                    0
+                ],
+                "monthly_balance": [
+                    1.95,
+                    2.03,
+                    2.03,
+                    2.03,
+                    4
+                ],
+                "tooling_need_a": 1.99,
+                "safety_stock_lead_time_b": 3,
+                "safety_stock_fluct_c": 0.398,
+                "safety_stock_add_d": 1,
+                "min_stock_e": 3,
+                "max_total_stand_by": 5,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 600000,
+                "est_prod_qty_stand_by": 1000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 34,
+            "tools_name_yes": "CBP136 5# DIESP COLLAR 19.9",
+            "input": {
+                "current_stock": 4,
+                "life_time": 120000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    3.42,
+                    3.28,
+                    3.28,
+                    3.28,
+                    0
+                ],
+                "monthly_balance": [
+                    0.58,
+                    0.72,
+                    0.72,
+                    0.72,
+                    4
+                ],
+                "tooling_need_a": 3.31,
+                "safety_stock_lead_time_b": 5,
+                "safety_stock_fluct_c": 0.662,
+                "safety_stock_add_d": 1,
+                "min_stock_e": 5,
+                "max_total_stand_by": 7,
+                "status_info": "ORDER",
+                "est_prod_qty_min": 600000,
+                "est_prod_qty_stand_by": 840000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 35,
+            "tools_name_yes": "CBP136 5# DIESPN COLLAR 19.9",
+            "input": {
+                "current_stock": 6,
+                "life_time": 500000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    0.82,
+                    0.79,
+                    0.79,
+                    0.79,
+                    0
+                ],
+                "monthly_balance": [
+                    5.18,
+                    5.21,
+                    5.21,
+                    5.21,
+                    6
+                ],
+                "tooling_need_a": 0.8,
+                "safety_stock_lead_time_b": 2,
+                "safety_stock_fluct_c": 0.16000000000000003,
+                "safety_stock_add_d": 0,
+                "min_stock_e": 1,
+                "max_total_stand_by": 3,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 500000,
+                "est_prod_qty_stand_by": 1500000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 36,
+            "tools_name_yes": "CBP136 5# PPN COLLAR 19.9",
+            "input": {
+                "current_stock": 2,
+                "life_time": 1000000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    0.41,
+                    0.39,
+                    0.39,
+                    0.39,
+                    0
+                ],
+                "monthly_balance": [
+                    1.59,
+                    1.61,
+                    1.61,
+                    1.61,
+                    2
+                ],
+                "tooling_need_a": 0.4,
+                "safety_stock_lead_time_b": 1,
+                "safety_stock_fluct_c": 0.08000000000000002,
+                "safety_stock_add_d": 0,
+                "min_stock_e": 1,
+                "max_total_stand_by": 2,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 1000000,
+                "est_prod_qty_stand_by": 2000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 37,
+            "tools_name_yes": "BF-01 CBP-1365# STRIPPER SPACER983951-09011-CCOLLAR 19.9",
+            "input": {
+                "current_stock": 0,
+                "life_time": 1000000,
+                "forecasts": [
+                    410568,
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 397601,
+                "monthly_need": [
+                    0.41,
+                    0.39,
+                    0.39,
+                    0.39,
+                    0
+                ],
+                "monthly_balance": [
+                    -0.41,
+                    -0.39,
+                    -0.39,
+                    -0.39,
+                    0
+                ],
+                "tooling_need_a": 0.4,
+                "safety_stock_lead_time_b": 1,
+                "safety_stock_fluct_c": 0.08000000000000002,
+                "safety_stock_add_d": 0,
+                "min_stock_e": 1,
+                "max_total_stand_by": 2,
+                "status_info": "ORDER",
+                "est_prod_qty_min": 1000000,
+                "est_prod_qty_stand_by": 2000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 38,
+            "tools_name_yes": "CBP136 5# PIP COLLAR 19.9",
+            "input": {
+                "current_stock": 3,
+                "life_time": 150000,
+                "forecasts": [
+                    "0",
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 393279,
+                "monthly_need": [
+                    0,
+                    2.62,
+                    2.62,
+                    2.62,
+                    0
+                ],
+                "monthly_balance": [
+                    3,
+                    0.38,
+                    0.38,
+                    0.38,
+                    3
+                ],
+                "tooling_need_a": 2.62,
+                "safety_stock_lead_time_b": 4,
+                "safety_stock_fluct_c": 0.524,
+                "safety_stock_add_d": 1,
+                "min_stock_e": 4,
+                "max_total_stand_by": 6,
+                "status_info": "ORDER",
+                "est_prod_qty_min": 600000,
+                "est_prod_qty_stand_by": 900000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        },
+        {
+            "excel_row": 39,
+            "tools_name_yes": "BF-01 CBP-1365# PIPE PUNCH SPACER983951-09011-CCOLLAR 19.9",
+            "input": {
+                "current_stock": 2,
+                "life_time": 1000000,
+                "forecasts": [
+                    "0",
+                    393279,
+                    393279,
+                    393279,
+                    "0"
+                ],
+                "lead_time_days": 30
+            },
+            "expected": {
+                "forecast_avg": 393279,
+                "monthly_need": [
+                    0,
+                    0.39,
+                    0.39,
+                    0.39,
+                    0
+                ],
+                "monthly_balance": [
+                    2,
+                    1.61,
+                    1.61,
+                    1.61,
+                    2
+                ],
+                "tooling_need_a": 0.39,
+                "safety_stock_lead_time_b": 1,
+                "safety_stock_fluct_c": 0.07800000000000001,
+                "safety_stock_add_d": 0,
+                "min_stock_e": 1,
+                "max_total_stand_by": 2,
+                "status_info": "SECURE",
+                "est_prod_qty_min": 1000000,
+                "est_prod_qty_stand_by": 2000000,
+                "koreksi_min_stock": "OK",
+                "koreksi_stand_by": "OK"
+            }
+        }
+    ]
+}
