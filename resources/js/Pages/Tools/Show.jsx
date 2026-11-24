@@ -3,6 +3,7 @@ import {
     ArrowDownToLine,
     ArrowLeft,
     ArrowUpFromLine,
+    BarChart3,
     Calculator,
     ClipboardList,
     Gauge,
@@ -22,11 +23,11 @@ import UsageForm, { CancelUsageForm, ResetLifeForm } from '@/Components/UsageFor
 import UsageLogTable from '@/Components/UsageLogTable';
 import { Button, Card, CardHeader, EmptyState, Stat, cn } from '@/Components/ui';
 import AppLayout from '@/Layouts/AppLayout';
-import { formatDecimal, formatInt, formatNumber, formatSigned, monthLabels } from '@/lib/format';
+import { formatDecimal, formatInt, formatMonth, formatNumber, formatSigned, monthLabels } from '@/lib/format';
 import { LIFE_TONES, lifeOf } from '@/lib/life';
 import { buildUrl, damageFormUrl, resolveQrBase } from '@/lib/urls';
 
-export default function Show({ tool, transactions, damageReports, usageLogs }) {
+export default function Show({ tool, transactions, damageReports, usageLogs, forecastActuals = [], monthlyActuals = [] }) {
     const { app } = usePage().props;
     const [transactionType, setTransactionType] = useState(null);
     const closeModal = useCallback(() => setTransactionType(null), []);
@@ -259,8 +260,8 @@ export default function Show({ tool, transactions, damageReports, usageLogs }) {
             <Card className="mt-5">
                 <CardHeader
                     icon={Calculator}
-                    title="Kebutuhan Tooling per Bulan"
-                    subtitle="Need = ROUND(Forecast / Life Time, 2) · Balance = ROUND(Stok − Need, 2)"
+                    title="Forecast vs Actual & Kebutuhan Tooling"
+                    subtitle="Forecast = rencana produksi (Excel) · Actual = total input Pemakaian Life Time di bulan itu · Need & Balance tetap dari Forecast"
                 />
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[640px] text-sm">
@@ -276,6 +277,21 @@ export default function Show({ tool, transactions, damageReports, usageLogs }) {
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             <MonthRow label="Forecast (M..Q)" values={tool.forecasts} format={formatInt} />
+                            <ActualRow
+                                label="Actual Pemakaian (pcs)"
+                                cells={forecastActuals}
+                                render={(cell) => (cell.is_future ? '—' : formatInt(cell.actual_qty))}
+                            />
+                            <ActualRow
+                                label="% Actual / Forecast"
+                                cells={forecastActuals}
+                                render={(cell) => (cell.is_future ? '—' : <PercentBadge cell={cell} />)}
+                            />
+                            <ActualRow
+                                label="Tool Terpakai (Ganti Tool)"
+                                cells={forecastActuals}
+                                render={(cell) => (cell.is_future ? '—' : formatInt(cell.tools_replaced))}
+                            />
                             <MonthRow
                                 label="Tooling Need (S..W)"
                                 values={tool.monthly_need}
@@ -315,6 +331,53 @@ export default function Show({ tool, transactions, damageReports, usageLogs }) {
                                         )}
                                     >
                                         {row.value}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </Card>
+
+            <Card className="mt-5">
+                <CardHeader
+                    icon={BarChart3}
+                    title="Actual Pemakaian per Bulan"
+                    subtitle="6 bulan terakhir · Forecast hanya muncul bila bulan itu ada di Excel terakhir"
+                />
+                <div className="overflow-x-auto">
+                    <table className="w-full min-w-[640px] text-sm">
+                        <thead className="bg-slate-50 text-xs font-bold text-slate-600 uppercase">
+                            <tr>
+                                <th className="px-4 py-2 text-left">Bulan</th>
+                                <th className="px-4 py-2 text-right">Forecast (pcs)</th>
+                                <th className="px-4 py-2 text-right">Actual (pcs)</th>
+                                <th className="px-4 py-2 text-right">% Actual</th>
+                                <th className="px-4 py-2 text-right">Tool Terpakai</th>
+                                <th className="px-4 py-2 text-right">Jumlah Input</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {monthlyActuals.map((cell) => (
+                                <tr key={cell.month} className={cn(cell.is_current && 'bg-sky-50/60')}>
+                                    <td className="px-4 py-2 font-semibold whitespace-nowrap text-slate-700">
+                                        {formatMonth(`${cell.month}-01`)}
+                                        {cell.is_current && (
+                                            <span className="ml-2 text-xs font-medium text-sky-700">berjalan</span>
+                                        )}
+                                    </td>
+                                    <td className="px-4 py-2 text-right tabular-nums text-slate-500">
+                                        {cell.forecast === null ? '—' : formatInt(cell.forecast)}
+                                    </td>
+                                    <td className="px-4 py-2 text-right font-semibold tabular-nums">
+                                        {formatInt(cell.actual_qty)}
+                                    </td>
+                                    <td className="px-4 py-2 text-right">
+                                        <PercentBadge cell={cell} />
+                                    </td>
+                                    <td className="px-4 py-2 text-right tabular-nums">{formatInt(cell.tools_replaced)}</td>
+                                    <td className="px-4 py-2 text-right tabular-nums text-slate-500">
+                                        {formatInt(cell.usage_inputs)}
                                     </td>
                                 </tr>
                             ))}
@@ -493,6 +556,44 @@ export default function Show({ tool, transactions, damageReports, usageLogs }) {
                 )}
             </Modal>
         </AppLayout>
+    );
+}
+
+function ActualRow({ label, cells, render }) {
+    return (
+        <tr className="bg-sky-50/40">
+            <td className="px-4 py-2 font-semibold whitespace-nowrap text-sky-900">{label}</td>
+            {Array.from({ length: 5 }, (_, index) => {
+                const cell = cells[index];
+
+                return (
+                    <td key={index} className="px-4 py-2 text-right tabular-nums">
+                        {cell ? render(cell) : '—'}
+                    </td>
+                );
+            })}
+        </tr>
+    );
+}
+
+/** > 100% = actual melebihi forecast (perlu revisi forecast) · bulan berjalan masih bisa bertambah. */
+function PercentBadge({ cell }) {
+    if (cell.percent === null) {
+        return <span className="text-slate-400">—</span>;
+    }
+
+    const over = cell.percent > 100;
+
+    return (
+        <span
+            className={cn(
+                'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-bold tabular-nums',
+                over ? 'bg-red-100 text-red-700' : 'bg-emerald-50 text-emerald-700',
+            )}
+            title={over ? 'Actual melebihi forecast' : cell.is_current ? 'Bulan berjalan, masih bisa bertambah' : undefined}
+        >
+            {formatInt(cell.percent)}%{over && ' ▲'}
+        </span>
     );
 }
 

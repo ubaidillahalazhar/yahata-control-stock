@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Exports\ControlStockExport;
+use App\Exports\MasterToolingTemplateExport;
 use App\Http\Requests\ImportMasterRequest;
 use App\Models\StockTransaction;
 use App\Models\ToolsInventory;
+use App\Models\ToolUsageLog;
 use App\Services\ToolingMasterSyncService;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -21,7 +23,7 @@ class ExcelSyncController extends Controller
     public function __construct(private readonly ToolingMasterSyncService $sync) {}
 
     /**
-     * Module 4: Excel Master Sync & Stock Opname.
+     * Module 4: Sinkronisasi Excel — Import Master, Import Pemakaian Life Time (Day), Stock Opname (bulanan).
      */
     public function index(): Response
     {
@@ -29,6 +31,11 @@ class ExcelSyncController extends Controller
             ->where('reference_no', 'like', 'OPN-%')
             ->latest('id')
             ->first(['reference_no', 'pic_name', 'created_at']);
+
+        $lastUsageImport = ToolUsageLog::query()
+            ->whereNotNull('batch_no')
+            ->latest('id')
+            ->first(['batch_no', 'created_at']);
 
         return Inertia::render('Sync/Index', [
             'stats' => [
@@ -40,6 +47,10 @@ class ExcelSyncController extends Controller
                     'reference_no' => $lastOpname->reference_no,
                     'pic_name' => $lastOpname->pic_name,
                     'created_at' => $lastOpname->created_at?->format('d/m/Y H:i'),
+                ] : null,
+                'last_usage_import' => $lastUsageImport ? [
+                    'batch_no' => $lastUsageImport->batch_no,
+                    'created_at' => $lastUsageImport->created_at?->format('d/m/Y H:i'),
                 ] : null,
             ],
         ]);
@@ -70,5 +81,13 @@ class ExcelSyncController extends Controller
     public function exportControlStock(): BinaryFileResponse
     {
         return Excel::download(new ControlStockExport, 'yahata_tools_control_stock_'.now()->format('Ymd_His').'.xlsx');
+    }
+
+    /**
+     * Template kosong layout "control stock" (A..AN) + contoh data no 2–5.
+     */
+    public function masterTemplate(): BinaryFileResponse
+    {
+        return Excel::download(new MasterToolingTemplateExport, 'template_master_tooling.xlsx');
     }
 }

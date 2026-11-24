@@ -86,4 +86,38 @@ class ExcelSyncTest extends TestCase
         $this->assertSame(0, $preview['summary']['rows_with_input']);
         $this->assertSame(25, $preview['summary']['skipped_blank']);
     }
+
+    #[Test]
+    public function master_template_has_examples_no_2_to_5_and_can_be_imported_back(): void
+    {
+        $this->travelTo('2026-11-23 10:00:00');
+
+        $this->get('/sync/master-template')->assertOk()
+            ->assertDownload('template_master_tooling.xlsx');
+
+        Excel::store(new \App\Exports\MasterToolingTemplateExport, 'template-test.xlsx', 'local');
+        $path = storage_path('app/private/template-test.xlsx');
+
+        $sheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($path)->getSheetByName('control stock');
+        $this->assertSame('no', $sheet->getCell('A1')->getValue());
+        $this->assertSame("Lead time Order \n(Day)", $sheet->getCell('AN1')->getValue());
+        $this->assertNull($sheet->getCell('AO1')->getValue(), 'Template hanya sampai kolom AN');
+        $this->assertSame('Nov-26', $sheet->getCell('M2')->getFormattedValue());
+        $this->assertSame([2, 3, 4, 5], array_map(fn ($r) => $sheet->getCell("A{$r}")->getValue(), range(3, 6)));
+        $this->assertNull($sheet->getCell('A7')->getValue());
+
+        // Rumus ikut menghitung: no 3 → R = 397.601, Min Stock = ROUNDUP(1,99 + 1) = 3 → ORDER (stok 1).
+        $this->assertEquals(397_601, $sheet->getCell('R4')->getCalculatedValue());
+        $this->assertEquals(3, $sheet->getCell('AG4')->getCalculatedValue());
+        $this->assertSame('ORDER', $sheet->getCell('AI4')->getCalculatedValue());
+
+        // Upload kembali: 3 tool masuk, no 2 (tanpa Yes Name) ditahan di Excel Belum Lengkap.
+        $result = app(ToolingMasterSyncService::class)->import($path);
+        @unlink($path);
+
+        $this->assertSame(3, $result['created']);
+        $this->assertSame(1, $result['held_new']);
+        $this->assertSame(['yes_name'], array_column(ToolImportIssue::query()->sole()->problems, 'field'));
+        $this->assertSame(397_601.0, (float) ToolsInventory::query()->where('tools_name_yes', 'CBP136 1# CUK COLLAR 19.9')->firstOrFail()->calculation()['forecast_avg']);
+    }
 }

@@ -6,22 +6,42 @@ import {
     FileDown,
     FileSpreadsheet,
     FileUp,
+    Gauge,
     TriangleAlert,
     Upload,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import UsageImportReview from '@/Components/UsageImportReview';
 import { Button, Card, CardHeader, Field, Input, Stat, cn } from '@/Components/ui';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatInt, formatMonth, formatSigned } from '@/lib/format';
 import { readStorage, STORAGE_KEYS, writeStorage } from '@/lib/storage';
+import { buildUrl } from '@/lib/urls';
 
 export default function Index({ stats }) {
     const { flash } = usePage().props;
     const [preview, setPreview] = useState(flash?.opname_preview ?? null);
     const [opnameResult, setOpnameResult] = useState(flash?.opname_result ?? null);
     const [onlyDifferences, setOnlyDifferences] = useState(true);
+    const [usagePreview, setUsagePreview] = useState(flash?.usage_preview ?? null);
+    const [usageResult, setUsageResult] = useState(flash?.usage_result ?? null);
     const masterInput = useRef(null);
     const opnameInput = useRef(null);
+    const usageInput = useRef(null);
+
+    useEffect(() => {
+        if (flash?.usage_preview) {
+            setUsagePreview(flash.usage_preview);
+            setUsageResult(null);
+        }
+    }, [flash?.usage_preview]);
+
+    useEffect(() => {
+        if (flash?.usage_result) {
+            setUsageResult(flash.usage_result);
+            setUsagePreview(null);
+        }
+    }, [flash?.usage_result]);
 
     useEffect(() => {
         if (flash?.opname_preview) {
@@ -39,6 +59,7 @@ export default function Index({ stats }) {
 
     const importForm = useForm({ master_file: null, sync_stock: false, pic_name: readStorage(STORAGE_KEYS.picName) });
     const uploadForm = useForm({ opname_file: null });
+    const usageForm = useForm({ usage_file: null });
     const applyForm = useForm({ pic_name: readStorage(STORAGE_KEYS.picName), reference_no: '', notes: '' });
 
     const submitImport = (event) => {
@@ -63,6 +84,19 @@ export default function Index({ stats }) {
             onSuccess: () => {
                 uploadForm.reset('opname_file');
                 if (opnameInput.current) opnameInput.current.value = '';
+            },
+        });
+    };
+
+    const submitUsagePreview = (event) => {
+        event.preventDefault();
+        usageForm.post('/sync/usage-preview', {
+            forceFormData: true,
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => {
+                usageForm.reset('usage_file');
+                if (usageInput.current) usageInput.current.value = '';
             },
         });
     };
@@ -97,10 +131,10 @@ export default function Index({ stats }) {
 
     return (
         <AppLayout
-            title="Excel Master Sync & Stock Opname"
-            subtitle="Sinkronisasi file yahata tools.xlsx dan workflow stock opname berbasis Excel"
+            title="Sinkronisasi Excel"
+            subtitle="Import master tooling, import pemakaian life time harian, dan stock opname bulanan berbasis Excel"
         >
-            <section className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-3">
+            <section className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <Stat label="Total item master" value={formatInt(stats.total_tools)} className="bg-white" />
                 <Stat
                     label="Master terakhir diperbarui"
@@ -109,9 +143,15 @@ export default function Index({ stats }) {
                     valueClassName="text-base"
                 />
                 <Stat
+                    label="Import pemakaian terakhir"
+                    value={stats.last_usage_import?.batch_no ?? '—'}
+                    className="bg-white"
+                    valueClassName="font-mono text-base"
+                />
+                <Stat
                     label="Opname terakhir"
                     value={stats.last_opname ? `${stats.last_opname.reference_no}` : '—'}
-                    className="col-span-2 bg-white lg:col-span-1"
+                    className="bg-white"
                     valueClassName="font-mono text-base"
                 />
             </section>
@@ -133,6 +173,9 @@ export default function Index({ stats }) {
                                 onChange={(event) => importForm.setData('master_file', event.target.files?.[0] ?? null)}
                                 className="block w-full cursor-pointer rounded-md border border-slate-300 bg-white text-sm file:mr-3 file:border-0 file:bg-slate-800 file:px-4 file:py-2.5 file:font-semibold file:text-white"
                             />
+                            <Button as="a" href="/sync/master-template" variant="dark" className="mt-2">
+                                <FileDown className="size-4" /> Download Template Master 
+                            </Button>
                         </Field>
 
                         <ul className="space-y-1 rounded-md bg-slate-50 p-3 text-xs text-slate-600">
@@ -241,12 +284,99 @@ export default function Index({ stats }) {
                     )}
                 </Card>
 
-                {/* ===== Stock opname ===== */}
+                {/* ===== Import pemakaian life time ===== */}
+                <Card>
+                    <CardHeader
+                        icon={Gauge}
+                        title="2. Import Pemakaian Life Time (Day)"
+                        subtitle="Download template → isi pemakaian → upload → review → terapkan"
+                    />
+                    <div className="space-y-5 p-5">
+                        <div className="flex items-start gap-3 rounded-md border border-slate-200 p-4">
+                            <StepNumber>A</StepNumber>
+                            <div className="flex-1">
+                                <p className="text-sm font-bold">Download Template Pemakaian</p>
+                                <p className="mb-3 text-xs text-slate-500">
+                                    Wajib: <b>Tools Name YES</b>, <b>Tanggal Pemakaian</b>, <b>Jumlah Terpakai</b>,{' '}
+                                    <b>Nama PIC</b> · opsional: Catatan. Tools Name YES tersedia sebagai dropdown.
+                                </p>
+                                <Button as="a" href="/sync/usage-template" variant="dark" size="sm">
+                                    <FileDown className="size-4" /> Download Template (.xlsx)
+                                </Button>
+                            </div>
+                        </div>
+
+                        <form
+                            onSubmit={submitUsagePreview}
+                            className="flex items-start gap-3 rounded-md border border-slate-200 p-4"
+                        >
+                            <StepNumber>B</StepNumber>
+                            <div className="flex-1 space-y-3">
+                                <div>
+                                    <p className="text-sm font-bold">Upload & Review</p>
+                                    <p className="text-xs text-slate-500">
+                                        Belum mengubah data. Bila ada 1 baris salah, tidak ada yang dimasukkan. Ganti
+                                        Tool tetap diinput lewat aplikasi.
+                                    </p>
+                                </div>
+                                <Field error={usageForm.errors.usage_file}>
+                                    <input
+                                        ref={usageInput}
+                                        type="file"
+                                        accept=".xlsx,.xls"
+                                        onChange={(event) =>
+                                            usageForm.setData('usage_file', event.target.files?.[0] ?? null)
+                                        }
+                                        className="block w-full cursor-pointer rounded-md border border-slate-300 bg-white text-sm file:mr-3 file:border-0 file:bg-blue-600 file:px-4 file:py-2.5 file:font-semibold file:text-white"
+                                    />
+                                </Field>
+                                <Button
+                                    type="submit"
+                                    size="sm"
+                                    loading={usageForm.processing}
+                                    disabled={!usageForm.data.usage_file}
+                                >
+                                    <FileUp className="size-4" /> Upload & Review
+                                </Button>
+                            </div>
+                        </form>
+
+                        {usageResult && (
+                            <div className="rounded-md border border-emerald-300 bg-emerald-50 p-4">
+                                <p className="flex items-center gap-2 text-sm font-bold text-emerald-800">
+                                    <CircleCheck className="size-4" /> Batch{' '}
+                                    <span className="font-mono">{usageResult.batch_no}</span> diterapkan
+                                </p>
+                                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                    <Stat label="Baris" value={formatInt(usageResult.inserted)} className="bg-white" />
+                                    <Stat label="Tool" value={formatInt(usageResult.tools)} className="bg-white" />
+                                    <Stat label="Total pcs" value={formatInt(usageResult.total_qty)} className="bg-white" />
+                                    <Stat
+                                        label="Duplikat dilewati"
+                                        value={formatInt(usageResult.skipped_duplicates)}
+                                        className="bg-white"
+                                    />
+                                </div>
+                                <Button
+                                    as={Link}
+                                    href={buildUrl('/tool-usages', { batch: usageResult.batch_no })}
+                                    variant="outline"
+                                    size="xs"
+                                    className="mt-3"
+                                >
+                                    Lihat riwayat batch ini
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                </Card>
+
+                {/* ===== Stock opname (bulanan) ===== */}
                 <Card>
                     <CardHeader
                         icon={ClipboardCheck}
-                        title="2. Stock Opname"
-                        subtitle="Download template → hitung fisik → upload → review → terapkan"
+                        title="3. Stock Opname (Bulanan)"
+                        subtitle="Cek fisik stok sebulan sekali: download template → hitung fisik → upload → review → terapkan"
                     />
                     <div className="space-y-5 p-5">
                         <div className="flex items-start gap-3 rounded-md border border-slate-200 p-4">
@@ -332,6 +462,14 @@ export default function Index({ stats }) {
                     </div>
                 </Card>
             </div>
+
+            {usagePreview && (
+                <UsageImportReview
+                    key={usagePreview.token ?? usagePreview.file_name}
+                    preview={usagePreview}
+                    onClose={() => setUsagePreview(null)}
+                />
+            )}
 
             {preview && (
                 <Card className="mt-5">

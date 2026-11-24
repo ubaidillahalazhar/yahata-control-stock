@@ -17,7 +17,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Input Forecast / Pemakaian life time harian (tanggal acak, 1 baris = 1 input).
+ * Pemakaian Life Time (Day) — input pemakaian harian (tanggal acak, 1 baris = 1 input).
  */
 class ToolUsageController extends Controller
 {
@@ -27,6 +27,7 @@ class ToolUsageController extends Controller
     {
         $filters = array_filter($request->validate([
             'tool_id' => ['nullable', 'integer'],
+            'batch' => ['nullable', 'string', 'max:40'],
             'month' => ['nullable', 'date_format:Y-m'],
             'type' => ['nullable', Rule::enum(UsageType::class)],
             'state' => ['nullable', Rule::in(['active', 'cancelled'])],
@@ -53,7 +54,6 @@ class ToolUsageController extends Controller
                 'rows' => (int) $monthTotal?->getAttribute('total_rows'),
                 'qty' => (int) $monthTotal?->getAttribute('total_qty'),
             ],
-            'initialToolId' => $request->integer('tool_id') ?: null,
         ]);
     }
 
@@ -87,6 +87,16 @@ class ToolUsageController extends Controller
         $log = $this->life->cancel($usage, $request->validated('pic_name'), $request->validated('cancel_reason'));
 
         return back()->with('success', $this->message($log, 'Input dibatalkan'));
+    }
+
+    /**
+     * Batalkan seluruh input dari satu batch import Excel (PLT-...).
+     */
+    public function cancelBatch(CancelToolUsageRequest $request, string $batch): RedirectResponse
+    {
+        $cancelled = $this->life->cancelBatch($batch, $request->validated('pic_name'), $request->validated('cancel_reason'));
+
+        return back()->with('success', sprintf('Batch %s dibatalkan: %d input dicoret, life time tool terkait dihitung ulang.', $batch, $cancelled));
     }
 
     private function message(ToolUsageLog $log, string $prefix): string

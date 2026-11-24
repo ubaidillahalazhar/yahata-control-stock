@@ -141,4 +141,84 @@ class ToolLifeTest extends TestCase
             ->where('totals.qty', 820_000)
             ->has('logs.data', 1));
     }
+
+    #[Test]
+    public function detail_page_compares_forecast_with_monthly_actual(): void
+    {
+        $this->travelTo('2026-11-23 10:00:00');
+
+        $tool = ToolsInventory::factory()->create([
+            'life_time' => 200_000,
+            'forecasts' => [400_000, 420_000, 0, 0, 0],
+            'forecast_months' => ['2026-11-01', '2026-12-01', '2027-01-01', null, null],
+        ]);
+
+        $this->useLife($tool, 100_000, '2026-10-31');           // bulan lalu
+        $this->useLife($tool, 180_000, '2026-11-01');
+        $this->post("/tools/{$tool->id}/life-reset", ['usage_date' => '2026-11-10', 'pic_name' => 'Budi']);
+        $this->useLife($tool, 150_000, '2026-11-12');
+        $this->useLife($tool, 120_000, '2026-11-30');           // ditolak: tanggal masa depan
+        $this->useLife($tool, 120_000, '2026-11-23');
+        $this->useLife($tool, 999_999, '2026-11-20');
+        $wrong = ToolUsageLog::query()->where('qty', 999_999)->firstOrFail();
+        $this->post("/tool-usages/{$wrong->id}/cancel", ['pic_name' => 'Budi']);   // dibatalkan → tidak dihitung
+
+        $this->get("/tools/{$tool->id}")->assertOk()->assertInertia(fn ($page) => $page
+            ->component('Tools/Show')
+            ->where('forecastActuals.0.month', '2026-11')
+            ->where('forecastActuals.0.actual_qty', 450_000)
+            ->where('forecastActuals.0.usage_inputs', 3)
+            ->where('forecastActuals.0.tools_replaced', 1)
+            ->where('forecastActuals.0.percent', 113)
+            ->where('forecastActuals.0.is_current', true)
+            ->where('forecastActuals.1.is_future', true)
+            ->where('forecastActuals.1.actual_qty', 0)
+            ->where('forecastActuals.2.percent', null)              // forecast 0 → tidak ada %
+            ->where('forecastActuals.3', null)                      // bulan kosong di baris 2 Excel
+            ->has('monthlyActuals', 6)
+            ->where('monthlyActuals.0.month', '2026-11')
+            ->where('monthlyActuals.1.month', '2026-10')
+            ->where('monthlyActuals.1.actual_qty', 100_000)
+            ->where('monthlyActuals.1.forecast', null)              // Okt sudah tidak ada di window forecast
+            ->where('monthlyActuals.5.month', '2026-06'));
+    }
+
+    #[Test]
+    public function control_stock_export_has_actual_using_tools_per_forecast_month(): void
+    {
+        $this->travelTo('2026-11-23 10:00:00');
+
+        $tool = ToolsInventory::factory()->create([
+            'life_time' => 200_000,
+            'forecasts' => [400_000, 420_000, 0, 0, 0],
+            'forecast_months' => ['2026-10-01', '2026-11-01', '2026-12-01', '2027-01-01', '2027-02-01'],
+        ]);
+        $other = ToolsInventory::factory()->create(['forecast_months' => $tool->forecast_months]);
+
+        $this->useLife($tool, 375_000, '2026-10-15');
+        $this->useLife($tool, 300_000, '2026-11-02');
+        $this->useLife($tool, 150_000, '2026-11-20');
+        $this->useLife($tool, 777_777, '2026-11-21');
+        $wrong = ToolUsageLog::query()->where('qty', 777_777)->firstOrFail();
+        $this->post("/tool-usages/{$wrong->id}/cancel", ['pic_name' => 'Budi']);
+
+        $this->get('/sync/control-stock-export')->assertOk();
+
+        \Maatwebsite\Excel\Facades\Excel::store(new \App\Exports\ControlStockExport, 'control-test.xlsx', 'local');
+        $sheet = \PhpOffice\PhpSpreadsheet\IOFactory::load(storage_path('app/private/control-test.xlsx'))->getActiveSheet();
+        @unlink(storage_path('app/private/control-test.xlsx'));
+
+        $this->assertSame('Actual Using Tools (pcs)', $sheet->getCell('AO1')->getValue());
+        $this->assertSame('AO1:AS1', collect($sheet->getMergeCells())->first(fn ($range) => str_starts_with($range, 'AO1')));
+        $this->assertSame('Oct-26', $sheet->getCell('AO2')->getFormattedValue());
+
+        $rowOf = fn (ToolsInventory $t): int => collect(range(3, 4))->first(fn ($r) => $sheet->getCell("H{$r}")->getValue() === $t->tools_name_yes);
+
+        $row = $rowOf($tool);
+        $this->assertSame(375_000, $sheet->getCell("AO{$row}")->getValue());   // Okt
+        $this->assertSame(450_000, $sheet->getCell("AP{$row}")->getValue());   // Nov (yang dibatalkan tidak dihitung)
+        $this->assertNull($sheet->getCell("AQ{$row}")->getValue());            // Des belum berjalan → kosong
+
+        $this->assertSame(0, $sheet->getCell('AP'.$rowOf($other))->getValue()); // tanpa input → 0
+    }
 }

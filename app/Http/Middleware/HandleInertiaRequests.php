@@ -36,6 +36,8 @@ class HandleInertiaRequests extends Middleware
                 'import_result' => $request->session()->get('import_result'),
                 'opname_preview' => $request->session()->get('opname_preview'),
                 'opname_result' => $request->session()->get('opname_result'),
+                'usage_preview' => $request->session()->get('usage_preview'),
+                'usage_result' => $request->session()->get('usage_result'),
             ],
         ];
     }

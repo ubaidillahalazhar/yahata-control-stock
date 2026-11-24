@@ -1,7 +1,8 @@
 import { Link } from '@inertiajs/react';
-import { Ban, Gauge, RotateCcw } from 'lucide-react';
+import { Ban, FileSpreadsheet, Gauge, RotateCcw } from 'lucide-react';
 import { Button, cn } from '@/Components/ui';
 import { formatInt } from '@/lib/format';
+import { buildUrl } from '@/lib/urls';
 
 /**
  * Riwayat input pemakaian life time. Baris yang dibatalkan tetap tampil (dicoret).
@@ -86,6 +87,15 @@ export default function UsageLogTable({ logs, showTool = false, onCancel }) {
                             <td className="px-4 py-2">
                                 <p className="font-semibold">{log.pic_name}</p>
                                 {log.notes && <p className="text-xs text-slate-500">{log.notes}</p>}
+                                {log.batch_no && (
+                                    <Link
+                                        href={buildUrl('/tool-usages', { batch: log.batch_no })}
+                                        className="mt-0.5 inline-flex items-center gap-1 rounded bg-sky-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-sky-800 ring-1 ring-sky-600/20 ring-inset hover:bg-sky-100"
+                                        title="Lihat semua input dari import Excel ini"
+                                    >
+                                        <FileSpreadsheet className="size-3" /> Excel {log.batch_no}
+                                    </Link>
+                                )}
                                 {log.is_cancelled && log.cancel_reason && (
                                     <p className="text-xs text-red-500">Alasan batal: {log.cancel_reason}</p>
                                 )}

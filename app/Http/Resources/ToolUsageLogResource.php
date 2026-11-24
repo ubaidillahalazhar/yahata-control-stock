@@ -24,6 +24,7 @@ class ToolUsageLogResource extends JsonResource
             'life_used_after' => $this->life_used_after,
             'pic_name' => $this->pic_name,
             'notes' => $this->notes,
+            'batch_no' => $this->batch_no,
             'is_cancelled' => $this->isCancelled(),
             'cancelled_at_display' => $this->cancelled_at?->format('d/m/Y H:i'),
             'cancelled_by' => $this->cancelled_by,
