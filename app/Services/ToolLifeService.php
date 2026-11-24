@@ -76,9 +76,126 @@ final class ToolLifeService
         ];
     }
 
-    public function recordUsage(int $toolId, string $usageDate, int $qty, string $picName, ?string $notes = null): ToolUsageLog
+    public function recordUsage(int $toolId, string $usageDate, int $qty, string $picName, ?string $notes = null, ?string $batchNo = null): ToolUsageLog
     {
-        return $this->write($toolId, UsageType::Usage, $usageDate, $qty, $picName, $notes);
+        return $this->write($toolId, UsageType::Usage, $usageDate, $qty, $picName, $notes, $batchNo);
+    }
+
+    /**
+     * Import pemakaian dari Excel: SEMUA baris masuk atau tidak sama sekali (satu transaksi).
+     * Tool dikunci berurutan berdasarkan ID agar tidak deadlock dengan input lain.
+     *
+     * @param  list<array{tool_id: int, usage_date: string, qty: int, pic_name: string, notes: ?string}>  $rows
+     * @return array{batch_no: string, inserted: int, tools: int, total_qty: int}
+     */
+    public function importUsages(array $rows, string $batchNo): array
+    {
+        return DB::transaction(function () use ($rows, $batchNo): array {
+            $toolIds = array_values(array_unique(array_map(fn (array $row): int => (int) $row['tool_id'], $rows)));
+            sort($toolIds);
+
+            $found = ToolsInventory::query()->whereIn('id', $toolIds)->orderBy('id')->lockForUpdate()->pluck('id')->all();
+
+            if (count($found) !== count($toolIds)) {
+                throw ValidationException::withMessages([
+                    'usage_import' => 'Sebagian tool sudah tidak ada di master sejak preview dibuat. Upload ulang file.',
+                ]);
+            }
+
+            foreach ($rows as $row) {
+                $this->recordUsage(
+                    toolId: (int) $row['tool_id'],
+                    usageDate: $row['usage_date'],
+                    qty: (int) $row['qty'],
+                    picName: $row['pic_name'],
+                    notes: $row['notes'] ?? null,
+                    batchNo: $batchNo,
+                );
+            }
+
+            return [
+                'batch_no' => $batchNo,
+                'inserted' => count($rows),
+                'tools' => count($toolIds),
+                'total_qty' => array_sum(array_map(fn (array $row): int => (int) $row['qty'], $rows)),
+            ];
+        }, StockMutationService::TRANSACTION_ATTEMPTS);
+    }
+
+    /**
+     * Batalkan seluruh input aktif dari satu batch import Excel. Baris tetap tercatat (dicoret).
+     *
+     * @return int jumlah baris yang dibatalkan
+     */
+    public function cancelBatch(string $batchNo, string $picName, ?string $reason = null): int
+    {
+        return DB::transaction(function () use ($batchNo, $picName, $reason): int {
+            $toolIds = ToolUsageLog::query()->active()->where('batch_no', $batchNo)
+                ->distinct()->orderBy('tool_id')->pluck('tool_id')->all();
+
+            if ($toolIds === []) {
+                throw ValidationException::withMessages(['usage' => "Batch {$batchNo} tidak punya input aktif (sudah dibatalkan / tidak ada)."]);
+            }
+
+            $tools = ToolsInventory::query()->whereIn('id', $toolIds)->orderBy('id')->lockForUpdate()->get();
+
+            $cancelled = ToolUsageLog::query()->active()->where('batch_no', $batchNo)->update([
+                'cancelled_at' => now(),
+                'cancelled_by' => self::clean($picName),
+                'cancel_reason' => self::clean($reason) ?? "Batal batch {$batchNo}",
+                'updated_at' => now(),
+            ]);
+
+            foreach ($tools as $tool) {
+                $tool->forceFill(['life_used' => $this->recalculate($tool)])->save();
+            }
+
+            return $cancelled;
+        }, StockMutationService::TRANSACTION_ATTEMPTS);
+    }
+
+    /**
+     * Simulasi life terpakai setelah pemakaian baru ditambahkan (untuk preview, tidak menulis DB).
+     * Sama dengan recalculate(): hanya pemakaian SETELAH Ganti Tool terakhir yang dihitung.
+     * Pemakaian baru bertanggal sama dengan Ganti Tool dianggap setelahnya (input lebih baru).
+     *
+     * @param  array<int, list<array{usage_date: string, qty: int}>>  $newRowsByTool  keyed by tool_id
+     * @return array<int, array{life_used_before: int, life_used_after: int, last_reset_date: ?string, counted_qty: int}>
+     */
+    public static function projectLife(array $newRowsByTool): array
+    {
+        if ($newRowsByTool === []) {
+            return [];
+        }
+
+        $tools = ToolsInventory::query()->whereIn('id', array_keys($newRowsByTool))->get(['id', 'life_used'])->keyBy('id');
+
+        $lastResets = ToolUsageLog::query()->active()
+            ->whereIn('tool_id', array_keys($newRowsByTool))
+            ->where('type', UsageType::Reset->value)
+            ->orderBy('usage_date')->orderBy('id')
+            ->get(['tool_id', 'usage_date'])
+            ->keyBy('tool_id'); // urut naik → entri terakhir per tool tersisa
+
+        $result = [];
+
+        foreach ($newRowsByTool as $toolId => $rows) {
+            $resetDate = $lastResets->get($toolId)?->usage_date?->toDateString();
+            $counted = array_sum(array_map(
+                fn (array $row): int => $resetDate === null || $row['usage_date'] >= $resetDate ? (int) $row['qty'] : 0,
+                $rows,
+            ));
+            $before = (int) ($tools->get($toolId)?->life_used ?? 0);
+
+            $result[$toolId] = [
+                'life_used_before' => $before,
+                'life_used_after' => $before + $counted,
+                'last_reset_date' => $resetDate,
+                'counted_qty' => $counted,
+            ];
+        }
+
+        return $result;
     }
 
     /**
@@ -143,9 +260,88 @@ final class ToolLifeService
         return (int) $usage->sum('qty');
     }
 
-    private function write(int $toolId, UsageType $type, string $usageDate, int $qty, string $picName, ?string $notes): ToolUsageLog
+    /**
+     * Actual per bulan dari log aktif (yang dibatalkan tidak dihitung).
+     *
+     * - actual_qty     = total pcs input Pemakaian di bulan itu (dibandingkan dengan Forecast).
+     * - tools_replaced = jumlah "Ganti Tool" di bulan itu (= tool yang habis / diganti).
+     *
+     * @param  list<?string>  $months  Format Y-m; null / duplikat diabaikan
+     * @return array<string, array{actual_qty: int, usage_inputs: int, tools_replaced: int}>
+     */
+    public static function monthlyActuals(int $toolId, array $months): array
     {
-        return DB::transaction(function () use ($toolId, $type, $usageDate, $qty, $picName, $notes): ToolUsageLog {
+        $empty = array_fill_keys(self::normalizeMonths($months), self::EMPTY_ACTUAL);
+
+        return self::monthlyActualsByTool($months, [$toolId])[$toolId] ?? $empty;
+    }
+
+    /**
+     * Sama seperti monthlyActuals(), untuk banyak tool sekaligus (1 query — dipakai export).
+     * Tool tanpa log tidak ada di hasil; pakai EMPTY_ACTUAL sebagai default.
+     *
+     * @param  list<?string>  $months  Format Y-m
+     * @param  list<int>|null  $toolIds  null = semua tool
+     * @return array<int, array<string, array{actual_qty: int, usage_inputs: int, tools_replaced: int}>>
+     */
+    public static function monthlyActualsByTool(array $months, ?array $toolIds = null): array
+    {
+        $months = self::normalizeMonths($months);
+
+        if ($months === [] || $toolIds === []) {
+            return [];
+        }
+
+        $template = array_fill_keys($months, self::EMPTY_ACTUAL);
+        $from = Carbon::createFromFormat('!Y-m', $months[0])->startOfMonth();
+        $until = Carbon::createFromFormat('!Y-m', end($months))->startOfMonth()->addMonth();
+        $result = [];
+
+        ToolUsageLog::query()
+            ->active()
+            ->when($toolIds !== null, fn ($query) => $query->whereIn('tool_id', $toolIds))
+            // Batas atas eksklusif: kolom date bisa tersimpan sebagai "Y-m-d 00:00:00".
+            ->where('usage_date', '>=', $from->toDateString())
+            ->where('usage_date', '<', $until->toDateString())
+            ->select(['id', 'tool_id', 'type', 'usage_date', 'qty'])
+            ->lazyById(1000)
+            ->each(function (ToolUsageLog $log) use (&$result, $template): void {
+                $key = $log->usage_date->format('Y-m');
+
+                if (! isset($template[$key])) {
+                    return;
+                }
+
+                $result[$log->tool_id] ??= $template;
+
+                if ($log->type === UsageType::Usage) {
+                    $result[$log->tool_id][$key]['actual_qty'] += $log->qty;
+                    $result[$log->tool_id][$key]['usage_inputs']++;
+                } else {
+                    $result[$log->tool_id][$key]['tools_replaced']++;
+                }
+            });
+
+        return $result;
+    }
+
+    public const EMPTY_ACTUAL = ['actual_qty' => 0, 'usage_inputs' => 0, 'tools_replaced' => 0];
+
+    /**
+     * @param  list<?string>  $months
+     * @return list<string>
+     */
+    private static function normalizeMonths(array $months): array
+    {
+        $months = array_values(array_unique(array_filter($months)));
+        sort($months);
+
+        return $months;
+    }
+
+    private function write(int $toolId, UsageType $type, string $usageDate, int $qty, string $picName, ?string $notes, ?string $batchNo = null): ToolUsageLog
+    {
+        return DB::transaction(function () use ($toolId, $type, $usageDate, $qty, $picName, $notes, $batchNo): ToolUsageLog {
             $tool = $this->stock->lockTool($toolId);
             $before = (int) $tool->life_used;
 
@@ -158,6 +354,7 @@ final class ToolLifeService
                 'life_used_after' => $before,
                 'pic_name' => self::clean($picName),
                 'notes' => self::clean($notes),
+                'batch_no' => $batchNo,
             ]);
 
             $after = $this->recalculate($tool);

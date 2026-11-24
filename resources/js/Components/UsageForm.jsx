@@ -242,3 +242,59 @@ export function CancelUsageForm({ log, onSuccess }) {
         </form>
     );
 }
+
+/**
+ * Batalkan seluruh input aktif dari satu batch import Excel (PLT-...).
+ */
+export function CancelBatchForm({ batchNo, activeRows, totalQty, onSuccess }) {
+    const { data, setData, post, processing, errors } = useForm({
+        pic_name: readStorage(STORAGE_KEYS.picName),
+        cancel_reason: '',
+    });
+
+    const submit = (event) => {
+        event.preventDefault();
+        writeStorage(STORAGE_KEYS.picName, data.pic_name);
+        post(`/tool-usages/batches/${encodeURIComponent(batchNo)}/cancel`, {
+            preserveScroll: true,
+            onSuccess: () => onSuccess?.(),
+        });
+    };
+
+    return (
+        <form onSubmit={submit} className="space-y-4">
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+                <p className="font-semibold">
+                    Batch <span className="font-mono">{batchNo}</span> · {formatInt(activeRows)} input aktif ·{' '}
+                    <span className="tabular-nums">{formatInt(totalQty)} pcs</span>
+                </p>
+                <p className="text-xs">
+                    Semua input aktif di batch ini dicoret (tetap tercatat) dan life time tool terkait dihitung ulang.
+                </p>
+            </div>
+
+            {errors.usage && <p className="text-sm font-semibold text-red-600">{errors.usage}</p>}
+
+            <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Nama PIC" required error={errors.pic_name}>
+                    <Input
+                        value={data.pic_name}
+                        onChange={(event) => setData('pic_name', event.target.value)}
+                        invalid={Boolean(errors.pic_name)}
+                    />
+                </Field>
+                <Field label="Alasan" error={errors.cancel_reason}>
+                    <Input
+                        value={data.cancel_reason}
+                        onChange={(event) => setData('cancel_reason', event.target.value)}
+                        placeholder="mis. file salah upload"
+                    />
+                </Field>
+            </div>
+
+            <Button type="submit" variant="danger" size="lg" className="w-full" loading={processing}>
+                <Ban className="size-5" /> Batalkan Seluruh Batch
+            </Button>
+        </form>
+    );
+}

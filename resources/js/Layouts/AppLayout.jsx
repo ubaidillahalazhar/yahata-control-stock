@@ -46,7 +46,7 @@ const NAV_SECTIONS = [
             },
             {
                 href: '/tool-usages',
-                label: 'Input Forecast / Pemakaian',
+                label: 'Pemakaian Life Time (Day)',
                 icon: Gauge,
                 isActive: (path) => path.startsWith('/tool-usages'),
             },
