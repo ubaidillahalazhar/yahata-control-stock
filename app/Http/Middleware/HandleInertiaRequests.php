@@ -22,6 +22,8 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+
         return [
             ...parent::share($request),
             'app' => [
@@ -29,6 +31,16 @@ class HandleInertiaRequests extends Middleware
                 'company' => config('app.company'),
                 'department' => config('app.department'),
                 'url' => rtrim((string) config('app.url'), '/'),
+            ],
+            'auth' => [
+                'user' => $user ? [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role ?? 'pic',
+                    'machine_name' => $user->machine_name,
+                    'is_admin' => $user->isAdmin(),
+                ] : null,
             ],
             'flash' => fn (): array => [
                 'success' => $request->session()->get('success'),

@@ -7,6 +7,7 @@ use App\Exports\AuditLogExport;
 use App\Http\Requests\ListFilterRequest;
 use App\Http\Resources\StockTransactionResource;
 use App\Models\StockTransaction;
+use Illuminate\Support\Arr;
 use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
@@ -22,6 +23,7 @@ class AuditLogController extends Controller
     public function index(ListFilterRequest $request): Response
     {
         $filters = array_intersect_key($request->filters(), array_flip(self::FILTER_KEYS));
+        $summaryFilters = Arr::except($filters, ['type']);
 
         $transactions = StockTransaction::query()
             ->with('tool:id,tools_name_yes,tools_name,machine_name,rack_location')
@@ -31,12 +33,15 @@ class AuditLogController extends Controller
             ->withQueryString();
 
         $summary = StockTransaction::query()
-            ->filter($filters)
+            ->filter($summaryFilters)
             ->selectRaw('type, COUNT(*) AS total_rows, COALESCE(SUM(qty_change), 0) AS total_qty')
             ->groupBy('type')
             ->get()
             ->mapWithKeys(fn (StockTransaction $row): array => [
-                $row->type->value => ['rows' => (int) $row->getAttribute('total_rows'), 'qty' => (int) $row->getAttribute('total_qty')],
+                $row->type->value => [
+                    'rows' => (int) $row->getAttribute('total_rows'),
+                    'qty' => (int) $row->getAttribute('total_qty'),
+                ],
             ]);
 
         return Inertia::render('AuditLog/Index', [
