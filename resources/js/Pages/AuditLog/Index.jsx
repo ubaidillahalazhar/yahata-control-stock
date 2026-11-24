@@ -1,6 +1,6 @@
 import { Link, router } from '@inertiajs/react';
 import { Download, Filter, History, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Pagination from '@/Components/Pagination';
 import { TransactionTypeBadge } from '@/Components/StatusBadge';
 import { Button, Card, EmptyState, Field, Input, Select, cn } from '@/Components/ui';
@@ -19,6 +19,12 @@ const TYPE_TONES = {
 
 export default function Index({ transactions, summary, filters, types }) {
     const [form, setForm] = useState({ ...EMPTY_FILTERS, ...filters });
+    const activeType = filters?.type ?? '';
+
+    useEffect(() => {
+        setForm({ ...EMPTY_FILTERS, ...filters });
+    }, [filters]);
+
     const set = (key) => (event) => setForm((prev) => ({ ...prev, [key]: event.target.value }));
 
     const apply = (next = form) => {
@@ -42,7 +48,8 @@ export default function Index({ transactions, summary, filters, types }) {
     };
 
     const toggleType = (value) => {
-        const next = { ...form, type: form.type === value ? '' : value };
+        const nextType = activeType === value ? '' : value;
+        const next = { ...form, type: nextType };
         setForm(next);
         apply(next);
     };
@@ -59,8 +66,8 @@ export default function Index({ transactions, summary, filters, types }) {
         >
             <section className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
                 {types.map((type) => {
-                    const item = summary[type.value] ?? { rows: 0, qty: 0 };
-                    const active = form.type === type.value;
+                    const item = summary?.[type.value] ?? { rows: 0, qty: 0 };
+                    const active = activeType === type.value;
 
                     return (
                         <button
@@ -71,10 +78,18 @@ export default function Index({ transactions, summary, filters, types }) {
                             className={cn(
                                 'rounded-lg border border-l-4 border-slate-200 bg-white p-4 text-left shadow-sm transition hover:shadow-md',
                                 TYPE_TONES[type.value],
-                                active && 'ring-2 ring-blue-600',
+                                active && 'bg-blue-50/30 ring-2 ring-blue-600',
+                                activeType && !active && 'opacity-80 hover:opacity-100',
                             )}
                         >
-                            <TransactionTypeBadge type={type.value} title={type.label} />
+                            <div className="flex items-center justify-between gap-2">
+                                <TransactionTypeBadge type={type.value} title={type.label} />
+                                {active && (
+                                    <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-800">
+                                        Filter Aktif
+                                    </span>
+                                )}
+                            </div>
                             <p className="mt-2 text-2xl font-extrabold tabular-nums">{formatInt(item.rows)}</p>
                             <p className="text-xs text-slate-500">
                                 transaksi · net <b className="tabular-nums">{formatSigned(item.qty)}</b> pcs
@@ -148,7 +163,7 @@ export default function Index({ transactions, summary, filters, types }) {
                     />
                 ) : (
                     <div className="overflow-x-auto">
-                        <table className="w-full min-w-[1000px] text-sm">
+                        <table className="w-full min-w-250 text-sm">
                             <thead className="bg-slate-800 text-[11px] font-bold tracking-wide text-white uppercase">
                                 <tr>
                                     <th className="px-3 py-2.5 text-left">Waktu</th>

@@ -58,6 +58,8 @@ class ExcelSyncController extends Controller
 
     public function importMaster(ImportMasterRequest $request): RedirectResponse
     {
+        ini_set('memory_limit', '512M');
+
         try {
             $result = $this->sync->import(
                 file: $request->file('master_file'),

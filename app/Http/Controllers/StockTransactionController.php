@@ -50,13 +50,40 @@ class StockTransactionController extends Controller
 
         $transaction->load('tool');
 
-        return back()->with('success', sprintf(
-            '%s %d pcs — %s. Stok: %d → %d.',
-            $transaction->type->value,
-            abs($transaction->qty_change),
-            $transaction->tool->tools_name_yes,
-            $transaction->stock_before,
-            $transaction->stock_after,
-        ));
+        return redirect()
+            ->route('transactions.show', $transaction)
+            ->with('success', sprintf(
+                '%s %d pcs — %s. Stok: %d → %d. Slip bukti mutasi siap dicetak.',
+                $transaction->type->value,
+                abs($transaction->qty_change),
+                $transaction->tool->tools_name_yes,
+                $transaction->stock_before,
+                $transaction->stock_after,
+            ));
+    }
+
+    public function show(StockTransaction $stockTransaction): Response
+    {
+        $stockTransaction->load('tool');
+
+        return Inertia::render('Transactions/Show', [
+            'transaction' => [
+                'id' => $stockTransaction->id,
+                'reference_no' => $stockTransaction->reference_no ?: sprintf('TRX-%06d', $stockTransaction->id),
+                'type' => $stockTransaction->type->value,
+                'qty_change' => $stockTransaction->qty_change,
+                'stock_before' => $stockTransaction->stock_before,
+                'stock_after' => $stockTransaction->stock_after,
+                'pic_name' => $stockTransaction->pic_name,
+                'notes' => $stockTransaction->notes,
+                'created_at' => $stockTransaction->created_at?->format('d/m/Y H:i'),
+                'tool' => [
+                    'tools_name_yes' => $stockTransaction->tool?->tools_name_yes,
+                    'item_name' => $stockTransaction->tool?->item_name ?? $stockTransaction->tool?->part_name,
+                    'rack_location' => $stockTransaction->tool?->rack_location,
+                    'unit' => $stockTransaction->tool?->unit ?? 'PCS',
+                ],
+            ],
+        ]);
     }
 }

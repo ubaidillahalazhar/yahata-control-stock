@@ -42,7 +42,7 @@ export function Button({
             type={isButton ? (type ?? 'button') : undefined}
             disabled={isButton ? disabled || loading : undefined}
             className={cn(
-                'inline-flex shrink-0 items-center justify-center rounded-md font-semibold whitespace-nowrap transition-colors',
+                'inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-all duration-150 active:scale-[0.98] disabled:opacity-50',
                 'focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
                 BUTTON_VARIANTS[variant],
                 BUTTON_SIZES[size],
@@ -58,7 +58,7 @@ export function Button({
 
 export function Card({ className, children, ...props }) {
     return (
-        <div className={cn('rounded-lg border border-slate-200 bg-white shadow-sm', className)} {...props}>
+        <div className={cn('rounded-xl border border-slate-200/80 bg-white shadow-sm transition-shadow duration-200 hover:shadow-md', className)} {...props}>
             {children}
         </div>
     );
@@ -90,7 +90,7 @@ export function CardHeader({ icon: Icon, title, subtitle, actions, className }) 
 
 const controlClass = (invalid) =>
     cn(
-        'block w-full rounded-md border bg-white text-slate-900 shadow-xs placeholder:text-slate-400',
+        'block w-full rounded-lg border bg-white text-slate-800 shadow-2xs transition-colors placeholder:text-slate-400',
         'focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 focus:outline-none disabled:bg-slate-100',
         invalid ? 'border-red-500' : 'border-slate-300',
     );

@@ -1,21 +1,23 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     ArrowLeftRight,
     ClipboardList,
-    Factory,
     FileSpreadsheet,
     FileWarning,
     Gauge,
     History,
     LayoutDashboard,
+    LogOut,
     Menu,
     QrCode,
     ScanLine,
+    UserCog,
     X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import FlashMessages from '@/Components/FlashMessages';
 import { cn } from '@/Components/ui';
+import logoYahata from '@/assets/logo-yahata.jpeg';
 
 const NAV_SECTIONS = [
     {
@@ -71,12 +73,14 @@ const NAV_SECTIONS = [
                 href: '/sync',
                 label: 'Sinkronisasi Excel',
                 icon: FileSpreadsheet,
+                adminOnly: true,
                 isActive: (path) => path.startsWith('/sync'),
             },
             {
                 href: '/import-issues',
                 label: 'Excel Belum Lengkap',
                 icon: FileWarning,
+                adminOnly: true,
                 isActive: (path) => path.startsWith('/import-issues'),
             },
             {
@@ -87,14 +91,42 @@ const NAV_SECTIONS = [
             },
         ],
     },
+    {
+        title: 'Pengaturan',
+        adminOnly: true,
+        items: [
+            {
+                href: '/accounts',
+                label: 'Pengaturan Akun',
+                icon: UserCog,
+                adminOnly: true,
+                isActive: (path) => path.startsWith('/accounts'),
+            },
+        ],
+    },
 ];
 
 export default function AppLayout({ title, subtitle, actions, children }) {
     const { url, props } = usePage();
     const path = url.split('?')[0];
     const [navOpen, setNavOpen] = useState(false);
+
     const company = props.app?.company ?? 'PT. Yahata Fastener Indonesia';
     const department = props.app?.department ?? 'Production Department';
+    const authUser = props.auth?.user ?? null;
+    const isAdmin = authUser?.role === 'admin' || Boolean(authUser?.is_admin);
+
+    const visibleSections = NAV_SECTIONS
+        .filter((section) => !section.adminOnly || isAdmin)
+        .map((section) => ({
+            ...section,
+            items: section.items.filter((item) => !item.adminOnly || isAdmin),
+        }))
+        .filter((section) => section.items.length > 0);
+
+    const handleLogout = () => {
+        router.post('/logout');
+    };
 
     useEffect(() => setNavOpen(false), [url]);
 
@@ -142,7 +174,7 @@ export default function AppLayout({ title, subtitle, actions, children }) {
                 </div>
 
                 <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
-                    {NAV_SECTIONS.map((section) => (
+                    {visibleSections.map((section) => (
                         <div key={section.title}>
                             <p className="mb-2 px-3 text-[11px] font-bold tracking-wider text-slate-500 uppercase">
                                 {section.title}
@@ -173,6 +205,39 @@ export default function AppLayout({ title, subtitle, actions, children }) {
                     ))}
                 </nav>
 
+                {authUser && (
+                    <div className="border-t border-slate-800 bg-slate-950/40 px-4 py-3.5">
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                    <p className="truncate text-xs font-bold text-white">{authUser.name}</p>
+                                    <span
+                                        className={cn(
+                                            'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-extrabold uppercase',
+                                            isAdmin
+                                                ? 'bg-amber-500/20 text-amber-300'
+                                                : 'bg-blue-500/20 text-blue-300',
+                                        )}
+                                    >
+                                        {isAdmin ? 'Admin' : 'PIC Mesin'}
+                                    </span>
+                                </div>
+                                <p className="truncate text-[11px] text-slate-400">
+                                    {authUser.machine_name || authUser.email}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleLogout}
+                                title="Keluar dari akun"
+                                className="flex shrink-0 items-center gap-1 rounded-md border border-slate-700 px-2.5 py-1.5 text-xs font-semibold text-slate-300 transition hover:border-red-500/50 hover:bg-red-950/50 hover:text-red-300"
+                            >
+                                <LogOut className="size-3.5" /> Keluar
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 <div className="border-t border-slate-800 px-5 py-4 text-xs text-slate-500">
                     <p className="font-semibold text-slate-400">{company}</p>
                     <p>{department} · Control Stock Tool</p>
@@ -201,9 +266,13 @@ export default function AppLayout({ title, subtitle, actions, children }) {
 
 function Brand({ compact = false }) {
     return (
-        <Link href="/" className="flex items-center gap-2.5">
-            <span className="flex size-9 items-center justify-center rounded-md bg-blue-600 text-white">
-                <Factory className="size-5" aria-hidden="true" />
+        <Link href="/" className="flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white p-1 shadow-xs">
+                <img
+                    src={logoYahata}
+                    alt="Yahata"
+                    className="size-full object-contain"
+                />
             </span>
             <span className="leading-tight">
                 <span className="block text-sm font-extrabold tracking-wider text-white">YAHATA</span>
