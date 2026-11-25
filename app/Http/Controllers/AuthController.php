@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Enums\UserStatus;
 use App\Models\User;
+use App\Notifications\AdminAlert;
+use App\Notifications\PicRegistered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -105,7 +107,7 @@ class AuthController extends Controller
             ...User::credentialMessages(),
         ]);
 
-        User::create([
+        $pic = User::create([
             'name' => trim($validated['name']),
             'username' => $validated['username'],
             'machine_name' => trim($validated['machine_name']),
@@ -113,6 +115,9 @@ class AuthController extends Controller
             'status' => UserStatus::Pending,
             'password' => $validated['pin'],
         ]);
+
+        // Notifikasi gagal tidak boleh menggagalkan registrasi.
+        rescue(fn () => AdminAlert::toAdmins(new PicRegistered($pic)));
 
         return to_route('login')->with('success', sprintf(
             'Pendaftaran "%s" terkirim. Akun bisa dipakai setelah disetujui admin.',

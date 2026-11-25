@@ -7,6 +7,7 @@ use App\Http\Controllers\DamageReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExcelSyncController;
 use App\Http\Controllers\ImportIssueController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\QrLabelController;
 use App\Http\Controllers\StockOpnameController;
 use App\Http\Controllers\StockTransactionController;
@@ -94,5 +95,12 @@ Route::middleware(['auth', 'account.usable'])->group(function () {
         Route::delete('/accounts/{user}', [AccountController::class, 'destroy'])
             ->whereNumber('user')
             ->name('accounts.destroy');
+
+        // Lonceng notifikasi admin (dipanggil berkala oleh halaman → muncul tanpa refresh)
+        Route::get('/notifications/feed', [NotificationController::class, 'feed'])->name('notifications.feed');
+        Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+        Route::post('/notifications/{notification}/read', [NotificationController::class, 'read'])
+            ->whereUuid('notification')
+            ->name('notifications.read');
     });
 });

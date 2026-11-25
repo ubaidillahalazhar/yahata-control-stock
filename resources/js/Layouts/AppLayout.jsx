@@ -15,10 +15,12 @@ import {
     UserCog,
     X,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { NotificationBell, NotificationToasts, openNotification } from '@/Components/AdminNotifications';
 import FlashMessages from '@/Components/FlashMessages';
 import { cn } from '@/Components/ui';
 import logoYahata from '@/assets/logo-yahata.jpeg';
+import { useAdminFeed } from '@/lib/adminFeed';
 
 const NAV_SECTIONS = [
     {
@@ -122,6 +124,10 @@ export default function AppLayout({ title, subtitle, actions, children }) {
     const department = props.app?.department ?? 'Production Department';
     const authUser = props.auth?.user ?? null;
     const isAdmin = authUser?.role === 'admin' || Boolean(authUser?.is_admin);
+    const { feed, toasts, dismissToast, markRead, markAllRead } = useAdminFeed(isAdmin, props.auth?.pending_accounts ?? 0);
+    const openItem = (item) => openNotification(item, markRead);
+    const bell = (dark) =>
+        isAdmin && <NotificationBell feed={feed} onOpenItem={openItem} onReadAll={markAllRead} dark={dark} />;
 
     const visibleSections = NAV_SECTIONS
         .filter((section) => !section.adminOnly || isAdmin)
@@ -137,6 +143,16 @@ export default function AppLayout({ title, subtitle, actions, children }) {
 
     useEffect(() => setNavOpen(false), [url]);
 
+    // Sedang di halaman Akun dan jumlah registrasi menunggu berubah → muat ulang daftar akun saja.
+    const pendingCount = feed.pending_accounts;
+    const lastPending = useRef(pendingCount);
+    useEffect(() => {
+        if (lastPending.current !== pendingCount && path.startsWith('/accounts')) {
+            router.reload({ only: ['users'] });
+        }
+        lastPending.current = pendingCount;
+    }, [pendingCount, path]);
+
     return (
         <div className="min-h-screen bg-slate-100 text-slate-900 print:bg-white">
             <Head title={title} />
@@ -144,14 +160,17 @@ export default function AppLayout({ title, subtitle, actions, children }) {
             {/* Top bar mobile */}
             <div className="sticky top-0 z-40 flex h-14 items-center justify-between bg-slate-900 px-4 text-white lg:hidden print:hidden">
                 <Brand compact />
-                <button
-                    type="button"
-                    onClick={() => setNavOpen(true)}
-                    className="rounded-md p-2 hover:bg-slate-800"
-                    aria-label="Buka menu"
-                >
-                    <Menu className="size-5" />
-                </button>
+                <div className="flex items-center gap-1">
+                    {bell(true)}
+                    <button
+                        type="button"
+                        onClick={() => setNavOpen(true)}
+                        className="rounded-md p-2 hover:bg-slate-800"
+                        aria-label="Buka menu"
+                    >
+                        <Menu className="size-5" />
+                    </button>
+                </div>
             </div>
 
             {navOpen && (
@@ -189,7 +208,8 @@ export default function AppLayout({ title, subtitle, actions, children }) {
                             <ul className="space-y-1">
                                 {section.items.map(({ href, label, icon: Icon, isActive, badgeKey }) => {
                                     const active = isActive(path);
-                                    const badge = badgeKey ? Number(props.auth?.[badgeKey] ?? 0) : 0;
+                                    // Admin: angka badge ikut diperbarui polling notifikasi.
+                                    const badge = badgeKey ? Number(feed[badgeKey] ?? props.auth?.[badgeKey] ?? 0) : 0;
 
                                     return (
                                         <li key={href}>
@@ -275,7 +295,10 @@ export default function AppLayout({ title, subtitle, actions, children }) {
                             <h1 className="truncate text-xl font-extrabold tracking-tight text-slate-900">{title}</h1>
                             {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
                         </div>
-                        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+                        <div className="flex flex-wrap items-center gap-2">
+                            {actions}
+                            <div className="hidden lg:block">{bell(false)}</div>
+                        </div>
                     </div>
                 </header>
 
@@ -284,6 +307,8 @@ export default function AppLayout({ title, subtitle, actions, children }) {
                     {children}
                 </main>
             </div>
+
+            {isAdmin && <NotificationToasts toasts={toasts} onOpenItem={openItem} onDismiss={dismissToast} />}
         </div>
     );
 }

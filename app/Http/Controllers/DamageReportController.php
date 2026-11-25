@@ -11,6 +11,8 @@ use App\Http\Resources\DamageReportResource;
 use App\Http\Resources\ToolingResource;
 use App\Models\DamageReport;
 use App\Models\ToolsInventory;
+use App\Notifications\AdminAlert;
+use App\Notifications\DamageReportSubmitted;
 use App\Services\DamageReportService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -89,6 +91,9 @@ class DamageReportController extends Controller
         } catch (InsufficientStockException $exception) {
             throw $exception->toValidationException('qty_replaced');
         }
+
+        // Admin pelapor tidak perlu diberi tahu tentang laporannya sendiri.
+        rescue(fn () => AdminAlert::toAdmins(new DamageReportSubmitted($report->loadMissing('tool')), except: $request->user()));
 
         $message = $report->action->cutsStock()
             ? sprintf('Laporan %s tersimpan. Stok dipotong %d pcs (%d → %d).', $report->report_no, $report->qty_replaced, $report->stock_before, $report->stock_after)
