@@ -40,6 +40,7 @@ const STATUS_STYLES = {
 };
 
 export default function Index({ users = [], currentUserId = null }) {
+    const [isFormOpen, setIsFormOpen] = useState(false);
     const [showSecret, setShowSecret] = useState(false);
     const [editing, setEditing] = useState(null);
     const [busyId, setBusyId] = useState(null);
@@ -50,8 +51,17 @@ export default function Index({ users = [], currentUserId = null }) {
     const pending = users.filter((user) => user.status === 'pending');
     const others = users.filter((user) => user.status !== 'pending');
 
+    const openCreate = () => {
+        setEditing(null);
+        clearErrors();
+        reset();
+        setShowSecret(false);
+        setIsFormOpen(true);
+    };
+
     const startEdit = (user) => {
         clearErrors();
+        setShowSecret(false);
         setEditing(user);
         setData({
             ...EMPTY_FORM,
@@ -62,18 +72,20 @@ export default function Index({ users = [], currentUserId = null }) {
             email: user.email ?? '',
             nik: user.nik ?? '',
         });
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setIsFormOpen(true);
     };
 
-    const cancelEdit = () => {
+    const closeForm = () => {
+        setIsFormOpen(false);
         setEditing(null);
+        setShowSecret(false);
         clearErrors();
         reset();
     };
 
     const submit = (event) => {
         event.preventDefault();
-        const options = { preserveScroll: true, onSuccess: () => cancelEdit() };
+        const options = { preserveScroll: true, onSuccess: () => closeForm() };
 
         if (editing) {
             put(`/accounts/${editing.id}`, options);
@@ -171,9 +183,72 @@ export default function Index({ users = [], currentUserId = null }) {
                 </Card>
             )}
 
-            <div className="grid gap-6 lg:grid-cols-12">
-                <div className="lg:col-span-5">
-                    <Card className="p-5 sm:p-6">
+            <Card>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+                    <div className="flex items-center gap-2.5">
+                        <span className="flex size-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                            <Users className="size-5" />
+                        </span>
+                        <div>
+                            <h2 className="text-sm font-extrabold text-slate-900">Daftar Akun</h2>
+                            <p className="text-xs text-slate-500">
+                                <b>{others.filter((user) => user.status === 'active').length}</b> aktif dari{' '}
+                                <b>{others.length}</b> akun
+                            </p>
+                        </div>
+                    </div>
+
+                    <Button type="button" onClick={openCreate}>
+                        <UserPlus className="size-4" />
+                        Tambah Akun Baru
+                    </Button>
+                </div>
+
+                {others.length === 0 ? (
+                    <EmptyState
+                        icon={Users}
+                        title="Belum ada akun"
+                        description='Klik tombol "Tambah Akun Baru" untuk menambahkan akun.'
+                    />
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead className="bg-slate-800 text-[11px] font-bold tracking-wide text-white uppercase">
+                                <tr>
+                                    <th className="px-4 py-2.5 text-left">Nama &amp; Role</th>
+                                    <th className="px-4 py-2.5 text-left">Login</th>
+                                    <th className="px-4 py-2.5 text-left">Status</th>
+                                    <th className="px-4 py-2.5 text-right">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {others.map((user) => (
+                                    <AccountRow
+                                        key={user.id}
+                                        user={user}
+                                        isSelf={user.id === currentUserId}
+                                        busy={busyId === user.id}
+                                        onEdit={() => startEdit(user)}
+                                        onReset={() => resetSecret(user)}
+                                        onToggle={() => toggleActive(user)}
+                                        onDelete={() => destroy(user)}
+                                    />
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </Card>
+
+            {isFormOpen && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-[1px]"
+                    onClick={closeForm}
+                >
+                    <Card
+                        className="max-h-[90vh] w-full max-w-lg overflow-y-auto p-5 shadow-xl sm:p-6"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         <div className="mb-4 flex items-center gap-2.5 border-b border-slate-200 pb-3.5">
                             <span className="flex size-9 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
                                 {editing ? <Pencil className="size-5" /> : <UserPlus className="size-5" />}
@@ -188,11 +263,14 @@ export default function Index({ users = [], currentUserId = null }) {
                                         : 'Akun yang dibuat admin langsung aktif'}
                                 </p>
                             </div>
-                            {editing && (
-                                <Button size="xs" variant="outline" onClick={cancelEdit}>
-                                    Batal
-                                </Button>
-                            )}
+                            <button
+                                type="button"
+                                onClick={closeForm}
+                                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                                aria-label="Tutup"
+                            >
+                                <X className="size-5" />
+                            </button>
                         </div>
 
                         <form onSubmit={submit} className="space-y-4">
@@ -244,7 +322,12 @@ export default function Index({ users = [], currentUserId = null }) {
                             </Field>
 
                             {isAdminForm && (
-                                <Field label="Email" required error={errors.email} hint="Login cadangan bila Superapps tidak bisa diakses">
+                                <Field
+                                    label="Email"
+                                    required
+                                    error={errors.email}
+                                    hint="Login cadangan bila Superapps tidak bisa diakses"
+                                >
                                     <Input
                                         type="email"
                                         value={data.email}
@@ -323,62 +406,19 @@ export default function Index({ users = [], currentUserId = null }) {
                                 </button>
                             )}
 
-                            <Button type="submit" className="w-full" loading={processing}>
-                                {editing ? <Check className="size-4" /> : <UserPlus className="size-4" />}
-                                {editing ? 'Simpan Perubahan' : 'Simpan Akun Baru'}
-                            </Button>
+                            <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
+                                <Button type="button" variant="outline" onClick={closeForm}>
+                                    Batal
+                                </Button>
+                                <Button type="submit" loading={processing}>
+                                    {editing ? <Check className="size-4" /> : <UserPlus className="size-4" />}
+                                    {editing ? 'Simpan Perubahan' : 'Simpan Akun Baru'}
+                                </Button>
+                            </div>
                         </form>
                     </Card>
                 </div>
-
-                <div className="lg:col-span-7">
-                    <Card>
-                        <div className="flex items-center gap-2.5 border-b border-slate-200 px-5 py-4">
-                            <span className="flex size-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-                                <Users className="size-5" />
-                            </span>
-                            <div>
-                                <h2 className="text-sm font-extrabold text-slate-900">Daftar Akun</h2>
-                                <p className="text-xs text-slate-500">
-                                    <b>{others.filter((user) => user.status === 'active').length}</b> aktif dari{' '}
-                                    <b>{others.length}</b> akun
-                                </p>
-                            </div>
-                        </div>
-
-                        {others.length === 0 ? (
-                            <EmptyState icon={Users} title="Belum ada akun" description="Tambahkan akun melalui formulir." />
-                        ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-slate-800 text-[11px] font-bold tracking-wide text-white uppercase">
-                                        <tr>
-                                            <th className="px-4 py-2.5 text-left">Nama &amp; Role</th>
-                                            <th className="px-4 py-2.5 text-left">Login</th>
-                                            <th className="px-4 py-2.5 text-left">Status</th>
-                                            <th className="px-4 py-2.5 text-right">Aksi</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {others.map((user) => (
-                                            <AccountRow
-                                                key={user.id}
-                                                user={user}
-                                                isSelf={user.id === currentUserId}
-                                                busy={busyId === user.id}
-                                                onEdit={() => startEdit(user)}
-                                                onReset={() => resetSecret(user)}
-                                                onToggle={() => toggleActive(user)}
-                                                onDelete={() => destroy(user)}
-                                            />
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </Card>
-                </div>
-            </div>
+            )}
         </AppLayout>
     );
 }
