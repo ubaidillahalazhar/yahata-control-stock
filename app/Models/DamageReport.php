@@ -16,6 +16,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property string|null $report_no
  * @property int $tool_id
+ * @property int|null $user_id
  * @property string $operator_name
  * @property int $shift
  * @property int $qty_replaced
@@ -32,6 +33,7 @@ class DamageReport extends Model
     protected $fillable = [
         'report_no',
         'tool_id',
+        'user_id',
         'operator_name',
         'shift',
         'qty_replaced',
@@ -61,6 +63,18 @@ class DamageReport extends Model
     public function tool(): BelongsTo
     {
         return $this->belongsTo(ToolsInventory::class, 'tool_id');
+    }
+
+    /** Akun pelapor (null untuk laporan lama sebelum ada login). */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /** PIC hanya melihat laporannya sendiri; admin melihat semua. */
+    public function scopeVisibleTo(Builder $query, User $user): void
+    {
+        $query->when(! $user->isAdmin(), fn (Builder $q) => $q->where('user_id', $user->id));
     }
 
     public function stockTransaction(): HasOne

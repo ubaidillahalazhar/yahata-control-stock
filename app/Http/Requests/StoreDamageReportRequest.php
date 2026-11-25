@@ -17,6 +17,19 @@ class StoreDamageReportRequest extends FormRequest
         return true;
     }
 
+    /**
+     * PIC melapor atas nama akunnya sendiri → nama operator diambil dari akun, bukan dari input.
+     * Admin boleh mengisi nama operator lain (melapor atas nama operator).
+     */
+    protected function prepareForValidation(): void
+    {
+        $user = $this->user();
+
+        if ($user && ! $user->isAdmin()) {
+            $this->merge(['operator_name' => $user->name]);
+        }
+    }
+
     public function rules(): array
     {
         return [

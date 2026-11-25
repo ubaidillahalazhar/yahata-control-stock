@@ -1,4 +1,4 @@
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { ClipboardList, Filter, Printer, ScanLine, X } from 'lucide-react';
 import { useState } from 'react';
 import Pagination from '@/Components/Pagination';
@@ -18,6 +18,7 @@ const EMPTY_FILTERS = {
 };
 
 export default function Index({ reports, summary, filters, reasons, actions }) {
+    const isAdmin = Boolean(usePage().props.auth?.user?.is_admin);
     const [form, setForm] = useState({ ...EMPTY_FILTERS, ...filters });
     const set = (key) => (event) => setForm((prev) => ({ ...prev, [key]: event.target.value }));
 
@@ -45,8 +46,12 @@ export default function Index({ reports, summary, filters, reasons, actions }) {
 
     return (
         <AppLayout
-            title="Riwayat Laporan Kerusakan"
-            subtitle="Seluruh laporan kerusakan & penggantian part dari form QR"
+            title={isAdmin ? 'Riwayat Laporan Kerusakan' : 'Riwayat Laporan Saya'}
+            subtitle={
+                isAdmin
+                    ? 'Seluruh laporan kerusakan & penggantian part dari form QR'
+                    : 'Laporan kerusakan & penggantian part yang Anda buat'
+            }
             actions={
                 <Button as={Link} href="/damage-reports/create" size="sm">
                     <ScanLine className="size-4" /> Form Kerusakan
@@ -181,12 +186,18 @@ export default function Index({ reports, summary, filters, reasons, actions }) {
                                         <td className="px-3 py-2">
                                             {report.tool ? (
                                                 <>
-                                                    <Link
-                                                        href={`/tools/${report.tool.id}`}
-                                                        className="font-mono text-[13px] font-bold hover:text-blue-700"
-                                                    >
-                                                        {report.tool.tools_name_yes}
-                                                    </Link>
+                                                    {isAdmin ? (
+                                                        <Link
+                                                            href={`/tools/${report.tool.id}`}
+                                                            className="font-mono text-[13px] font-bold hover:text-blue-700"
+                                                        >
+                                                            {report.tool.tools_name_yes}
+                                                        </Link>
+                                                    ) : (
+                                                        <span className="font-mono text-[13px] font-bold">
+                                                            {report.tool.tools_name_yes}
+                                                        </span>
+                                                    )}
                                                     <p className="text-xs text-slate-500">
                                                         {report.tool.machine_name} · Rak{' '}
                                                         {report.tool.rack_location ?? '—'}

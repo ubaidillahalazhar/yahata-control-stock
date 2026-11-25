@@ -6,6 +6,7 @@ import {
     FileWarning,
     Gauge,
     History,
+    KeyRound,
     LayoutDashboard,
     LogOut,
     Menu,
@@ -27,12 +28,14 @@ const NAV_SECTIONS = [
                 href: '/',
                 label: 'Dashboard Stok',
                 icon: LayoutDashboard,
+                adminOnly: true,
                 isActive: (path) => path === '/' || path.startsWith('/tools'),
             },
             {
                 href: '/audit-log',
                 label: 'Audit Log Stok',
                 icon: History,
+                adminOnly: true,
                 isActive: (path) => path.startsWith('/audit-log'),
             },
         ],
@@ -44,12 +47,14 @@ const NAV_SECTIONS = [
                 href: '/transactions/create',
                 label: 'Transaksi IN / OUT',
                 icon: ArrowLeftRight,
+                adminOnly: true,
                 isActive: (path) => path.startsWith('/transactions'),
             },
             {
                 href: '/tool-usages',
                 label: 'Pemakaian Life Time (Day)',
                 icon: Gauge,
+                adminOnly: true,
                 isActive: (path) => path.startsWith('/tool-usages'),
             },
             {
@@ -87,6 +92,7 @@ const NAV_SECTIONS = [
                 href: '/qr-labels',
                 label: 'Label QR Code',
                 icon: QrCode,
+                adminOnly: true,
                 isActive: (path) => path.startsWith('/qr-labels'),
             },
         ],
@@ -100,6 +106,7 @@ const NAV_SECTIONS = [
                 label: 'Pengaturan Akun',
                 icon: UserCog,
                 adminOnly: true,
+                badgeKey: 'pending_accounts',
                 isActive: (path) => path.startsWith('/accounts'),
             },
         ],
@@ -180,8 +187,9 @@ export default function AppLayout({ title, subtitle, actions, children }) {
                                 {section.title}
                             </p>
                             <ul className="space-y-1">
-                                {section.items.map(({ href, label, icon: Icon, isActive }) => {
+                                {section.items.map(({ href, label, icon: Icon, isActive, badgeKey }) => {
                                     const active = isActive(path);
+                                    const badge = badgeKey ? Number(props.auth?.[badgeKey] ?? 0) : 0;
 
                                     return (
                                         <li key={href}>
@@ -195,7 +203,15 @@ export default function AppLayout({ title, subtitle, actions, children }) {
                                                 )}
                                             >
                                                 <Icon className="size-4.5 shrink-0" aria-hidden="true" />
-                                                {label}
+                                                <span className="flex-1">{label}</span>
+                                                {badge > 0 && (
+                                                    <span
+                                                        className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] leading-none font-extrabold text-slate-950"
+                                                        title={`${badge} akun menunggu persetujuan`}
+                                                    >
+                                                        {badge}
+                                                    </span>
+                                                )}
                                             </Link>
                                         </li>
                                     );
@@ -223,9 +239,17 @@ export default function AppLayout({ title, subtitle, actions, children }) {
                                     </span>
                                 </div>
                                 <p className="truncate text-[11px] text-slate-400">
-                                    {authUser.machine_name || authUser.email}
+                                    {authUser.machine_name || authUser.username || authUser.email}
                                 </p>
                             </div>
+                            <Link
+                                href="/account/pin"
+                                title={isAdmin ? 'Ganti password' : 'Ganti PIN'}
+                                aria-label={isAdmin ? 'Ganti password' : 'Ganti PIN'}
+                                className="flex shrink-0 items-center rounded-md border border-slate-700 p-1.5 text-slate-300 transition hover:bg-slate-800 hover:text-white"
+                            >
+                                <KeyRound className="size-3.5" />
+                            </Link>
                             <button
                                 type="button"
                                 onClick={handleLogout}

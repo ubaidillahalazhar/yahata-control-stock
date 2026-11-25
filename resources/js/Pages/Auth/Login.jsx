@@ -9,14 +9,14 @@ export default function Login() {
     const [showPassword, setShowPassword] = useState(false);
 
     const { data, setData, post, processing, errors } = useForm({
-        email: '',
+        login: '',
         password: '',
-        remember: true,
+        remember: false,
     });
 
     const submit = (e) => {
         e.preventDefault();
-        post('/login');
+        post('/login', { onFinish: () => setData('password', '') });
     };
 
     return (
@@ -35,7 +35,7 @@ export default function Login() {
                         Control Stock Tooling
                     </h1>
                     <p className="mt-1 text-xs text-slate-400">
-                        Masuk sebagai Admin atau PIC Mesin Produksi
+                        PIC Mesin: username + PIN · Admin: email + password
                     </p>
                 </div>
 
@@ -43,33 +43,37 @@ export default function Login() {
 
                 <Card className="p-6 sm:p-7">
                     <form onSubmit={submit} className="space-y-4">
-                        <Field label="Alamat Email" required error={errors.email}>
+                        <Field label="Username / Email" required error={errors.login}>
                             <Input
-                                type="email"
-                                value={data.email}
-                                onChange={(e) => setData('email', e.target.value)}
-                                invalid={Boolean(errors.email)}
-                                placeholder="nama@yahata.co.id"
-                                autoComplete="email"
+                                value={data.login}
+                                onChange={(e) => setData('login', e.target.value)}
+                                invalid={Boolean(errors.login)}
+                                placeholder="mis. budi.heading"
+                                autoComplete="username"
+                                autoCapitalize="none"
+                                autoCorrect="off"
+                                spellCheck={false}
+                                className="h-12 text-base"
                                 autoFocus
                             />
                         </Field>
 
-                        <Field label="Password" required error={errors.password}>
+                        <Field label="PIN / Password" required error={errors.password}>
                             <div className="relative">
                                 <Input
                                     type={showPassword ? 'text' : 'password'}
                                     value={data.password}
                                     onChange={(e) => setData('password', e.target.value)}
                                     invalid={Boolean(errors.password)}
-                                    placeholder="Masukkan password"
-                                    className="pr-10"
+                                    placeholder="PIN 6 digit / password"
+                                    className="h-12 pr-10 text-base"
                                     autoComplete="current-password"
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword((prev) => !prev)}
                                     className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-700"
+                                    aria-label={showPassword ? 'Sembunyikan PIN' : 'Lihat PIN'}
                                 >
                                     {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                                 </button>
@@ -83,7 +87,7 @@ export default function Login() {
                                 onChange={(e) => setData('remember', e.target.checked)}
                                 className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                             />
-                            Ingat sesi login di perangkat ini
+                            Ingat sesi login (khusus admin di perangkat pribadi)
                         </label>
 
                         <Button type="submit" size="lg" className="w-full" loading={processing}>

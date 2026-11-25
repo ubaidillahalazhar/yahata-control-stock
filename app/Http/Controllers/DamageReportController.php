@@ -29,9 +29,11 @@ class DamageReportController extends Controller
     public function index(ListFilterRequest $request): Response
     {
         $filters = array_intersect_key($request->filters(), array_flip(self::FILTER_KEYS));
+        $user = $request->user();
 
         $reports = DamageReport::query()
             ->with('tool')
+            ->visibleTo($user)
             ->filter($filters)
             ->latest('reported_at')
             ->latest('id')
@@ -39,6 +41,7 @@ class DamageReportController extends Controller
             ->withQueryString();
 
         $summary = DamageReport::query()
+            ->visibleTo($user)
             ->filter($filters)
             ->selectRaw('damage_reason, COUNT(*) AS total_reports, COALESCE(SUM(qty_replaced), 0) AS total_qty')
             ->groupBy('damage_reason')
@@ -82,7 +85,7 @@ class DamageReportController extends Controller
     public function store(StoreDamageReportRequest $request): RedirectResponse
     {
         try {
-            $report = $this->reports->submit($request->validated());
+            $report = $this->reports->submit([...$request->validated(), 'user_id' => $request->user()->id]);
         } catch (InsufficientStockException $exception) {
             throw $exception->toValidationException('qty_replaced');
         }
@@ -97,8 +100,11 @@ class DamageReportController extends Controller
     /**
      * Slip / formulir resmi siap cetak.
      */
-    public function show(DamageReport $damageReport): Response
+    public function show(Request $request, DamageReport $damageReport): Response
     {
+        $user = $request->user();
+        abort_unless($user->isAdmin() || $damageReport->user_id === $user->id, 403, 'Laporan ini bukan milik akun Anda.');
+
         $damageReport->load(['tool', 'stockTransaction']);
 
         return Inertia::render('DamageReports/Show', [

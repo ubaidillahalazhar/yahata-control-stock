@@ -1,14 +1,18 @@
-import { Head, Link, usePage } from '@inertiajs/react';
-import { LayoutDashboard } from 'lucide-react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { ClipboardList, LayoutDashboard, LogOut } from 'lucide-react';
 import FlashMessages from '@/Components/FlashMessages';
 import logoYahata from '@/assets/logo-yahata.jpeg';
 
+const HEADER_LINK =
+    'flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800';
+
 /**
- * Layout ringan untuk halaman yang dibuka operator via scan QR di HP.
+ * Layout ringan untuk form yang dibuka operator via scan QR (HP / PC stasiun ruang tooling).
  */
 export default function MobileLayout({ title, children }) {
     const { props } = usePage();
     const company = props.app?.company ?? 'PT. Yahata Fastener Indonesia';
+    const user = props.auth?.user ?? null;
 
     return (
         <div className="min-h-screen bg-slate-100 text-slate-900">
@@ -24,16 +28,28 @@ export default function MobileLayout({ title, children }) {
                     </div>
                     <div className="min-w-0 flex-1">
                         <p className="truncate text-[11px] font-bold tracking-wider text-blue-300 uppercase">
-                            {company}
+                            {user && !user.is_admin ? user.name : company}
                         </p>
                         <h1 className="truncate text-base font-extrabold">{title}</h1>
                     </div>
-                    <Link
-                        href="/"
-                        className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800"
-                    >
-                        <LayoutDashboard className="size-4" /> Dashboard
-                    </Link>
+                    {user?.is_admin ? (
+                        <Link href="/" className={HEADER_LINK}>
+                            <LayoutDashboard className="size-4" /> Dashboard
+                        </Link>
+                    ) : (
+                        <>
+                            <Link href="/damage-reports" className={HEADER_LINK} aria-label="Riwayat laporan saya">
+                                <ClipboardList className="size-4" /> <span className="hidden sm:inline">Riwayat</span>
+                            </Link>
+                            <button
+                                type="button"
+                                onClick={() => router.post('/logout')}
+                                className={`${HEADER_LINK} hover:text-red-300`}
+                            >
+                                <LogOut className="size-4" /> Keluar
+                            </button>
+                        </>
+                    )}
                 </div>
             </header>
             <main className="mx-auto max-w-xl px-4 pt-5 pb-28">

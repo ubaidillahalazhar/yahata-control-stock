@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureAccountIsUsable;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
@@ -24,10 +25,12 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'admin' => EnsureUserIsAdmin::class,
+            'account.usable' => EnsureAccountIsUsable::class,
         ]);
 
         $middleware->redirectGuestsTo('/login');
-        $middleware->redirectUsersTo('/');
+        // User yang sudah login membuka /login atau /register → halaman awal sesuai role.
+        $middleware->redirectUsersTo(fn (Request $request): string => $request->user()?->homeUrl() ?? '/');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // Halaman yang lama terbuka (mis. form QR di HP) → token CSRF kedaluwarsa.

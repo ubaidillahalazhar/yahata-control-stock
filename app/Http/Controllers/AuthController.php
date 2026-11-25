@@ -2,17 +2,25 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\UserStatus;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class AuthController extends Controller
 {
+    /** Salah PIN/password sebanyak ini → login dikunci selama LOCKOUT_SECONDS. */
+    public const MAX_ATTEMPTS = 5;
+
+    public const LOCKOUT_SECONDS = 300;
+
     public function showLogin(): Response
     {
         return Inertia::render('Auth/Login');
@@ -20,33 +28,58 @@ class AuthController extends Controller
 
     public function login(Request $request): RedirectResponse
     {
-        $credentials = $request->validate([
-            'email' => ['required', 'string', 'email'],
+        $validated = $request->validate([
+            'login' => ['required', 'string', 'max:150'],
             'password' => ['required', 'string'],
         ], [
-            'email.required' => 'Email wajib diisi.',
-            'email.email' => 'Format email tidak valid.',
-            'password.required' => 'Password wajib diisi.',
+            'login.required' => 'Username atau email wajib diisi.',
+            'password.required' => 'PIN / password wajib diisi.',
         ]);
 
-        $credentials['email'] = strtolower(trim($credentials['email']));
-        $remember = $request->boolean('remember');
+        $login = mb_strtolower(trim($validated['login']));
+        $throttleKey = 'login:'.Str::transliterate($login).'|'.$request->ip();
 
-        if (! Auth::attempt($credentials, $remember)) {
-            return back()
-                ->withErrors(['email' => 'Email atau password tidak sesuai.'])
-                ->onlyInput('email');
+        if (RateLimiter::tooManyAttempts($throttleKey, self::MAX_ATTEMPTS)) {
+            $minutes = (int) ceil(RateLimiter::availableIn($throttleKey) / 60);
+
+            throw ValidationException::withMessages([
+                'login' => sprintf('Terlalu banyak percobaan gagal. Coba lagi dalam %d menit.', max(1, $minutes)),
+            ]);
         }
 
+        $user = User::query()
+            ->where(str_contains($login, '@') ? 'email' : 'username', $login)
+            ->first();
+
+        if (! $user || ! Hash::check($validated['password'], $user->password)) {
+            RateLimiter::hit($throttleKey, self::LOCKOUT_SECONDS);
+
+            return back()
+                ->withErrors(['login' => 'Username/email atau PIN/password tidak sesuai.'])
+                ->onlyInput('login');
+        }
+
+        RateLimiter::clear($throttleKey);
+
+        // Status baru dicek setelah kredensial benar → tidak membocorkan akun mana yang terdaftar.
+        if (! $user->isActive()) {
+            return back()
+                ->withErrors(['login' => $user->status->blockedMessage($user->rejection_reason)])
+                ->onlyInput('login');
+        }
+
+        // PIC login di PC bersama ruang tooling → tidak boleh "ingat saya".
+        Auth::login($user, $user->isAdmin() && $request->boolean('remember'));
         $request->session()->regenerate();
 
-        /** @var User $user */
-        $user = Auth::user();
-        $roleLabel = $user->isAdmin() ? 'Admin' : 'PIC Mesin';
+        if ($user->must_change_password) {
+            return to_route('account.pin.edit')
+                ->with('success', sprintf('Halo %s, silakan ganti %s sementara Anda terlebih dahulu.', $user->name, $user->secretLabel()));
+        }
 
         return redirect()
-            ->intended('/')
-            ->with('success', sprintf('Selamat datang kembali, %s (%s).', $user->name, $roleLabel));
+            ->intended($user->homeUrl())
+            ->with('success', sprintf('Selamat datang, %s (%s).', $user->name, $user->isAdmin() ? 'Admin' : 'PIC Mesin'));
     }
 
     public function showRegister(): Response
@@ -54,44 +87,93 @@ class AuthController extends Controller
         return Inertia::render('Auth/Register');
     }
 
+    /**
+     * Registrasi mandiri PIC → status pending, tidak langsung login.
+     */
     public function register(Request $request): RedirectResponse
     {
+        $request->merge(['username' => User::normalizeUsername($request->input('username'))]);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:120'],
+            'username' => User::usernameRules(),
             'machine_name' => ['required', 'string', 'max:100'],
-            'email' => ['required', 'string', 'email', 'max:150', Rule::unique('users', 'email')],
-            'password' => ['required', 'string', 'min:6', 'confirmed'],
+            'pin' => User::pinRules(),
         ], [
-            'name.required' => 'Nama PIC wajib diisi.',
-            'machine_name.required' => 'Nama / Nomor Mesin wajib diisi.',
-            'email.required' => 'Alamat email wajib diisi.',
-            'email.unique' => 'Email ini sudah terdaftar.',
-            'password.required' => 'Password wajib diisi.',
-            'password.min' => 'Password minimal 6 karakter.',
-            'password.confirmed' => 'Konfirmasi password tidak cocok.',
+            'name.required' => 'Nama lengkap wajib diisi.',
+            'machine_name.required' => 'Mesin / line wajib diisi.',
+            ...User::credentialMessages(),
         ]);
 
-        $user = User::create([
-            'name' => $validated['name'],
-            'machine_name' => $validated['machine_name'],
-            'email' => strtolower(trim($validated['email'])),
-            'role' => 'pic', // Registrasi mandiri otomatis terdaftar sebagai akun biasa (PIC Mesin)
-            'password' => Hash::make($validated['password']),
+        User::create([
+            'name' => trim($validated['name']),
+            'username' => $validated['username'],
+            'machine_name' => trim($validated['machine_name']),
+            'role' => User::ROLE_PIC,
+            'status' => UserStatus::Pending,
+            'password' => $validated['pin'],
         ]);
 
-        Auth::login($user);
-        $request->session()->regenerate();
+        return to_route('login')->with('success', sprintf(
+            'Pendaftaran "%s" terkirim. Akun bisa dipakai setelah disetujui admin.',
+            $validated['username'],
+        ));
+    }
 
-        return redirect('/')
-            ->with('success', sprintf('Registrasi berhasil! Akun PIC %s (%s) siap digunakan.', $user->name, $user->machine_name));
+    public function editPin(Request $request): Response
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        return Inertia::render('Auth/ChangePin', [
+            'isAdmin' => $user->isAdmin(),
+            'forced' => $user->must_change_password,
+        ]);
+    }
+
+    /**
+     * Ganti PIN (PIC) / password (admin) oleh user sendiri. Wajib memasukkan yang lama.
+     */
+    public function updatePin(Request $request): RedirectResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $field = $user->isAdmin() ? 'password' : 'pin';
+
+        $validated = $request->validate([
+            'current' => ['required', 'string'],
+            $field => [
+                ...($user->isAdmin() ? User::adminPasswordRules() : User::pinRules()),
+                'different:current',
+            ],
+        ], [
+            'current.required' => sprintf('%s lama wajib diisi.', ucfirst($user->secretLabel())),
+            "{$field}.different" => sprintf('%s baru harus berbeda dari yang lama.', ucfirst($user->secretLabel())),
+            ...User::credentialMessages(),
+        ]);
+
+        if (! Hash::check($validated['current'], $user->password)) {
+            throw ValidationException::withMessages([
+                'current' => sprintf('%s lama tidak sesuai.', ucfirst($user->secretLabel())),
+            ]);
+        }
+
+        $user->forceFill([
+            'password' => $validated[$field],
+            'must_change_password' => false,
+        ])->save();
+
+        return redirect($user->homeUrl())
+            ->with('success', sprintf('%s berhasil diganti.', ucfirst($user->secretLabel())));
     }
 
     public function logout(Request $request): RedirectResponse
     {
         Auth::logout();
+
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect('/login')->with('success', 'Anda telah keluar dari sistem.');
+        return to_route('login')->with('success', 'Anda telah keluar dari sistem.');
     }
 }
