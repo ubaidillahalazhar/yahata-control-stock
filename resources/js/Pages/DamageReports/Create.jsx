@@ -1,4 +1,4 @@
-import { useForm } from '@inertiajs/react';
+import { useForm, usePage } from '@inertiajs/react';
 import {
     Gauge,
     Hammer,
@@ -26,10 +26,13 @@ const ACTION_ICONS = { REPLACE_NEW: PackagePlus, REGRIND_REPAIR: Hammer };
 const SHIFTS = [1, 2, 3];
 
 export default function Create({ tools, selectedToolId, scope, reasons, actions }) {
+    const authUser = usePage().props.auth?.user ?? null;
+    // PIC melapor atas nama akunnya sendiri; hanya admin yang boleh mengisi nama operator lain.
+    const operatorLocked = Boolean(authUser && !authUser.is_admin);
     const savedShift = Number(readStorage(STORAGE_KEYS.shift));
     const { data, setData, post, processing, errors } = useForm({
         tool_id: selectedToolId ?? '',
-        operator_name: readStorage(STORAGE_KEYS.operatorName),
+        operator_name: operatorLocked ? authUser.name : readStorage(STORAGE_KEYS.operatorName),
         shift: SHIFTS.includes(savedShift) ? savedShift : '',
         qty_replaced: 1,
         actual_shot_count: '',
@@ -65,7 +68,9 @@ export default function Create({ tools, selectedToolId, scope, reasons, actions 
 
     const submit = (event) => {
         event.preventDefault();
-        writeStorage(STORAGE_KEYS.operatorName, data.operator_name);
+        if (!operatorLocked) {
+            writeStorage(STORAGE_KEYS.operatorName, data.operator_name);
+        }
         writeStorage(STORAGE_KEYS.shift, data.shift);
         post('/damage-reports', { preserveScroll: true });
     };
@@ -122,14 +127,20 @@ export default function Create({ tools, selectedToolId, scope, reasons, actions 
 
                 <Section number={2} title="Operator & Shift">
                     <div className="space-y-4">
-                        <Field label="Nama Operator" required error={errors.operator_name}>
+                        <Field
+                            label="Nama Operator"
+                            required
+                            error={errors.operator_name}
+                            hint={operatorLocked ? 'Sesuai akun yang sedang login' : undefined}
+                        >
                             <Input
                                 value={data.operator_name}
                                 onChange={(event) => setData('operator_name', event.target.value)}
                                 invalid={Boolean(errors.operator_name)}
                                 placeholder="Nama lengkap"
                                 autoComplete="name"
-                                className="h-12 text-base"
+                                readOnly={operatorLocked}
+                                className={cn('h-12 text-base', operatorLocked && 'bg-slate-100 font-semibold text-slate-700')}
                             />
                         </Field>
                         <Field label="Shift" required error={errors.shift}>

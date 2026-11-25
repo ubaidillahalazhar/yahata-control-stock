@@ -1,19 +1,20 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import { ArrowLeft, Eye, EyeOff, UserPlus } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Info, UserPlus } from 'lucide-react';
 import { useState } from 'react';
 import FlashMessages from '@/Components/FlashMessages';
+import PinInput from '@/Components/PinInput';
 import { Button, Card, Field, Input } from '@/Components/ui';
 import logoYahata from '@/assets/logo-yahata.jpeg';
 
 export default function Register() {
-    const [showPassword, setShowPassword] = useState(false);
+    const [showPin, setShowPin] = useState(false);
 
     const { data, setData, post, processing, errors } = useForm({
         name: '',
+        username: '',
         machine_name: '',
-        email: '',
-        password: '',
-        password_confirmation: '',
+        pin: '',
+        pin_confirmation: '',
     });
 
     const submit = (e) => {
@@ -36,16 +37,22 @@ export default function Register() {
                     <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-white">
                         Registrasi Akun PIC Mesin
                     </h1>
-                    <p className="mt-1 text-xs text-slate-400">
-                        Buat akun operator untuk transaksi stok &amp; laporan kerusakan part
-                    </p>
+                    <p className="mt-1 text-xs text-slate-400">Untuk membuat laporan kerusakan &amp; penggantian part</p>
                 </div>
 
                 <FlashMessages />
 
                 <Card className="p-6 sm:p-7">
+                    <div className="mb-4 flex gap-2.5 rounded-lg bg-blue-50 px-3.5 py-3 text-xs text-blue-900">
+                        <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                        <p>
+                            Setelah mendaftar, akun Anda <b>menunggu persetujuan admin</b>. Anda baru bisa login
+                            setelah disetujui.
+                        </p>
+                    </div>
+
                     <form onSubmit={submit} className="space-y-4">
-                        <Field label="Nama PIC / Operator" required error={errors.name}>
+                        <Field label="Nama Lengkap" required error={errors.name}>
                             <Input
                                 value={data.name}
                                 onChange={(e) => setData('name', e.target.value)}
@@ -53,6 +60,25 @@ export default function Register() {
                                 placeholder="mis. Ahmad Fauzi"
                                 autoComplete="name"
                                 autoFocus
+                            />
+                        </Field>
+
+                        <Field
+                            label="Username"
+                            required
+                            error={errors.username}
+                            hint="Huruf kecil, angka, titik (.) atau garis bawah (_). Dipakai untuk login."
+                        >
+                            <Input
+                                value={data.username}
+                                onChange={(e) => setData('username', e.target.value.toLowerCase().replace(/\s/g, ''))}
+                                invalid={Boolean(errors.username)}
+                                placeholder="mis. ahmad.heading"
+                                autoComplete="username"
+                                autoCapitalize="none"
+                                autoCorrect="off"
+                                spellCheck={false}
+                                maxLength={30}
                             />
                         </Field>
 
@@ -65,51 +91,37 @@ export default function Register() {
                             />
                         </Field>
 
-                        <Field label="Alamat Email" required error={errors.email}>
-                            <Input
-                                type="email"
-                                value={data.email}
-                                onChange={(e) => setData('email', e.target.value)}
-                                invalid={Boolean(errors.email)}
-                                placeholder="operator@yahata.co.id"
-                                autoComplete="email"
-                            />
-                        </Field>
-
-                        <Field label="Password" required error={errors.password}>
-                            <div className="relative">
-                                <Input
-                                    type={showPassword ? 'text' : 'password'}
-                                    value={data.password}
-                                    onChange={(e) => setData('password', e.target.value)}
-                                    invalid={Boolean(errors.password)}
-                                    placeholder="Minimal 6 karakter"
-                                    className="pr-10"
+                        <div className="grid grid-cols-2 gap-3">
+                            <Field label="PIN (6 digit)" required error={errors.pin}>
+                                <PinInput
+                                    value={data.pin}
+                                    onChange={(value) => setData('pin', value)}
+                                    invalid={Boolean(errors.pin)}
+                                    visible={showPin}
                                     autoComplete="new-password"
                                 />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPassword((prev) => !prev)}
-                                    className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-700"
-                                >
-                                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                                </button>
-                            </div>
-                        </Field>
-
-                        <Field label="Konfirmasi Password" required error={errors.password_confirmation}>
-                            <Input
-                                type={showPassword ? 'text' : 'password'}
-                                value={data.password_confirmation}
-                                onChange={(e) => setData('password_confirmation', e.target.value)}
-                                invalid={Boolean(errors.password_confirmation)}
-                                placeholder="Ulangi password"
-                                autoComplete="new-password"
-                            />
-                        </Field>
+                            </Field>
+                            <Field label="Ulangi PIN" required error={errors.pin_confirmation}>
+                                <PinInput
+                                    value={data.pin_confirmation}
+                                    onChange={(value) => setData('pin_confirmation', value)}
+                                    invalid={Boolean(errors.pin_confirmation)}
+                                    visible={showPin}
+                                    autoComplete="new-password"
+                                />
+                            </Field>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowPin((prev) => !prev)}
+                            className="-mt-2 inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-800"
+                        >
+                            {showPin ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                            {showPin ? 'Sembunyikan PIN' : 'Lihat PIN'}
+                        </button>
 
                         <Button type="submit" size="lg" className="w-full" loading={processing}>
-                            <UserPlus className="size-4" /> Daftar &amp; Masuk
+                            <UserPlus className="size-4" /> Kirim Pendaftaran
                         </Button>
                     </form>
 

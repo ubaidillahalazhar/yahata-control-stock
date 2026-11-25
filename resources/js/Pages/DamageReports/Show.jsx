@@ -1,4 +1,4 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { AlertTriangle, ArrowLeft, CheckCircle2, Plus, Printer } from 'lucide-react';
 import { useEffect } from 'react';
 import { Button } from '@/Components/ui';
@@ -18,6 +18,7 @@ const DAMAGE_CODE_LABELS = {
 };
 
 export default function Show({ report, damageReport }) {
+    const isAdmin = Boolean(usePage().props.auth?.user?.is_admin);
     const data = report ?? damageReport ?? {};
     const tool = data.tool ?? {};
 
@@ -68,8 +69,11 @@ export default function Show({ report, damageReport }) {
                         Laporan kerusakan &amp; penggantian part <b>{docNo}</b> berhasil tercatat dan siap dicetak.
                     </span>
                 </div>
-                <Link href="/" className="inline-flex items-center gap-1 font-semibold text-emerald-800 hover:underline">
-                    <ArrowLeft className="size-4" /> Dashboard
+                <Link
+                    href={isAdmin ? '/' : '/damage-reports'}
+                    className="inline-flex items-center gap-1 font-semibold text-emerald-800 hover:underline"
+                >
+                    <ArrowLeft className="size-4" /> {isAdmin ? 'Dashboard' : 'Riwayat Saya'}
                 </Link>
             </div>
 

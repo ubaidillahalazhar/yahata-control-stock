@@ -17,7 +17,7 @@ final class DamageReportService
      * Simpan laporan kerusakan. Jika tindakan REPLACE_NEW, stok dipotong otomatis dan
      * transaksi DAMAGE_REPLACEMENT dicatat — semuanya dalam satu transaksi database.
      *
-     * @param  array{tool_id: int, operator_name: string, shift: int, qty_replaced: int, actual_shot_count: int, damage_reason: string, action: string, notes?: ?string}  $data
+     * @param  array{tool_id: int, user_id?: ?int, operator_name: string, shift: int, qty_replaced: int, actual_shot_count: int, damage_reason: string, action: string, notes?: ?string}  $data
      *
      * @throws InsufficientStockException
      */
@@ -35,6 +35,7 @@ final class DamageReportService
             }
 
             $report = $tool->damageReports()->create([
+                'user_id' => $data['user_id'] ?? null,
                 'operator_name' => trim($data['operator_name']),
                 'shift' => (int) $data['shift'],
                 'qty_replaced' => $qty,

@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\UserStatus;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -15,6 +16,7 @@ class AdminUserSeeder extends Seeder
                 'name' => 'Mas Sigit',
                 'email' => 'sigit@yahata.co.id',
                 'role' => 'admin',
+                'status' => UserStatus::Active,
                 'machine_name' => 'All Lines / Admin',
                 'password' => Hash::make('yahata123'),
             ],
@@ -22,6 +24,7 @@ class AdminUserSeeder extends Seeder
                 'name' => 'Pak Apri',
                 'email' => 'apri@yahata.co.id',
                 'role' => 'admin',
+                'status' => UserStatus::Active,
                 'machine_name' => 'All Lines / Admin',
                 'password' => Hash::make('yahata123'),
             ],

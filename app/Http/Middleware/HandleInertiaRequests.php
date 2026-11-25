@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\UserStatus;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -36,11 +38,16 @@ class HandleInertiaRequests extends Middleware
                 'user' => $user ? [
                     'id' => $user->id,
                     'name' => $user->name,
+                    'username' => $user->username,
                     'email' => $user->email,
-                    'role' => $user->role ?? 'pic',
+                    'role' => $user->role ?? User::ROLE_PIC,
                     'machine_name' => $user->machine_name,
                     'is_admin' => $user->isAdmin(),
                 ] : null,
+                // Badge "menunggu persetujuan" di menu admin.
+                'pending_accounts' => fn (): int => $user?->isAdmin()
+                    ? User::query()->where('status', UserStatus::Pending)->count()
+                    : 0,
             ],
             'flash' => fn (): array => [
                 'success' => $request->session()->get('success'),
