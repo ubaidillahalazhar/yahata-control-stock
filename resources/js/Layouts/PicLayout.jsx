@@ -1,12 +1,13 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { ClipboardList, LayoutGrid, LogOut } from 'lucide-react';
+import logoYahata from '@/assets/logo-yahata.jpeg';
 
 export default function PicLayout({ children, showMenuButton = false }) {
     const { auth, flash } = usePage().props;
     const user = auth?.user ?? {};
 
     const operatorName = user.name || 'Operator PIC';
-    const machineLine = user.machine_name || 'Line Produksi';
+    const machineLine = user.machine_name || 'Process / Section';
 
     const handleLogout = () => {
         router.post('/logout');
@@ -14,13 +15,17 @@ export default function PicLayout({ children, showMenuButton = false }) {
 
     return (
         <div className="min-h-screen bg-slate-100/80 text-slate-900">
-            {/* HEADER PIC SESUAI SKETSA */}
+            {/* HEADER PIC */}
             <header className="sticky top-0 z-30 border-b border-slate-800 bg-[#0f172a] text-white shadow-md">
                 <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3.5 sm:px-6">
-                    {/* Kiri: Logo YFI + Nama Operator (Atas) & Mesin/Line Aktif (Bawah) */}
-                    <Link href="/pic/dashboard" className="flex min-w-0 items-center gap-3.5 group">
-                        <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white px-1.5 text-xs font-black tracking-tighter text-slate-900 shadow-sm transition group-hover:scale-105">
-                            YFI
+                    {/* Kiri: Logo YFI + Nama Operator (Atas) & Process/Section (Bawah) */}
+                    <Link href="/pic/dashboard" className="group flex min-w-0 items-center gap-3.5">
+                        <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1 shadow-sm transition group-hover:scale-105">
+                            <img
+                                src={logoYahata}
+                                alt="Logo PT. Yahata Fastener Indonesia"
+                                className="size-full object-contain"
+                            />
                         </div>
 
                         <div className="min-w-0">
@@ -30,7 +35,7 @@ export default function PicLayout({ children, showMenuButton = false }) {
                             <div className="mt-0.5 flex items-center gap-1.5">
                                 <span
                                     className="inline-flex size-2 shrink-0 rounded-full bg-emerald-400 ring-4 ring-emerald-400/20"
-                                    title="Status Mesin Aktif"
+                                    title="Status Aktif"
                                 />
                                 <h1 className="truncate text-sm font-extrabold tracking-tight text-white sm:text-base">
                                     {machineLine}

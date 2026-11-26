@@ -82,12 +82,12 @@ export default function Register() {
                             />
                         </Field>
 
-                        <Field label="Mesin / Line Produksi yang Dipegang" required error={errors.machine_name}>
+                        <Field label="Process / Section yang Dipegang" required error={errors.machine_name}>
                             <Input
                                 value={data.machine_name}
                                 onChange={(e) => setData('machine_name', e.target.value)}
                                 invalid={Boolean(errors.machine_name)}
-                                placeholder="mis. Heading M6 #01 / Rolling #03"
+                                placeholder="mis. Heading / Rolling"
                             />
                         </Field>
 

@@ -146,7 +146,7 @@ export default function Index({ users = [], currentUserId = null }) {
                                 Menunggu Persetujuan ({pending.length})
                             </h2>
                             <p className="text-xs text-amber-800">
-                                Periksa nama &amp; mesin/line sebelum menyetujui. Akun baru bisa login setelah disetujui.
+                                Periksa nama &amp; process/section sebelum menyetujui. Akun baru bisa login setelah disetujui.
                             </p>
                         </div>
                     </div>
@@ -294,12 +294,12 @@ export default function Index({ users = [], currentUserId = null }) {
                                         <option value="admin">Admin (Full Akses)</option>
                                     </Select>
                                 </Field>
-                                <Field label="Mesin / Line" required={!isAdminForm} error={errors.machine_name}>
+                                <Field label="Process / Section" required={!isAdminForm} error={errors.machine_name}>
                                     <Input
                                         value={data.machine_name}
                                         onChange={(e) => setData('machine_name', e.target.value)}
                                         invalid={Boolean(errors.machine_name)}
-                                        placeholder={isAdminForm ? 'All Lines / Admin' : 'mis. Heading #01'}
+                                        placeholder={isAdminForm ? 'All Sections / Admin' : 'mis. Heading'}
                                     />
                                 </Field>
                             </div>

@@ -54,7 +54,7 @@ const NAV_SECTIONS = [
             },
             {
                 href: '/tool-usages',
-                label: 'Pemakaian Life Time (Day)',
+                label: 'Riwayat Pemakaian Life Time (Day)',
                 icon: Gauge,
                 adminOnly: true,
                 isActive: (path) => path.startsWith('/tool-usages'),

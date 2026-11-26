@@ -58,7 +58,7 @@ export default function Dashboard() {
                 </h2>
                 <p className="mt-1 text-xs text-slate-500 sm:text-sm">
                     Pilih menu di bawah untuk pelaporan kerusakan, pemakaian life time, atau pengecekan stok di{' '}
-                    <span className="font-semibold text-slate-700">{user.machine_name || 'Line Produksi'}</span>.
+                    <span className="font-semibold text-slate-700">{user.machine_name || 'Process/Section'}</span>.
                 </p>
             </div>
 
