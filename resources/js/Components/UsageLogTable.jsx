@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { Ban, FileSpreadsheet, Gauge, RotateCcw } from 'lucide-react';
+import { Ban, FileSpreadsheet, Gauge, RotateCcw, SlidersHorizontal } from 'lucide-react';
 import { Button, cn } from '@/Components/ui';
 import { formatInt } from '@/lib/format';
 import { buildUrl } from '@/lib/urls';
@@ -24,6 +24,7 @@ export default function UsageLogTable({ logs, showTool = false, onCancel }) {
             <tbody className="divide-y divide-slate-100">
                 {logs.map((log) => {
                     const isReset = log.type === 'RESET';
+                    const isAdjust = log.type === 'ADJUST';
 
                     return (
                         <tr key={log.id} className={cn(log.is_cancelled && 'bg-slate-50 text-slate-400')}>
@@ -58,12 +59,24 @@ export default function UsageLogTable({ logs, showTool = false, onCancel }) {
                                         'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-bold whitespace-nowrap ring-1 ring-inset',
                                         isReset
                                             ? 'bg-slate-800 text-white ring-slate-900'
-                                            : 'bg-blue-50 text-blue-700 ring-blue-600/30',
+                                            : isAdjust
+                                              ? 'bg-violet-50 text-violet-700 ring-violet-600/30'
+                                              : 'bg-blue-50 text-blue-700 ring-blue-600/30',
                                     )}
+                                    title={isAdjust ? 'Selisih counter mesin untuk tool yang sudah diganti — masuk Actual, tidak menambah life tool sekarang' : undefined}
                                 >
-                                    {isReset ? <RotateCcw className="size-3" /> : <Gauge className="size-3" />}
-                                    {isReset ? 'GANTI TOOL' : 'PAKAI'}
+                                    {isReset ? (
+                                        <RotateCcw className="size-3" />
+                                    ) : isAdjust ? (
+                                        <SlidersHorizontal className="size-3" />
+                                    ) : (
+                                        <Gauge className="size-3" />
+                                    )}
+                                    {isReset ? 'GANTI TOOL' : isAdjust ? 'KOREKSI COUNT' : 'PAKAI'}
                                 </span>
+                                {log.source && log.source !== 'manual' && log.source !== 'excel' && (
+                                    <p className="mt-1 text-[11px] text-slate-500">{log.source_label}</p>
+                                )}
                                 {log.is_cancelled && (
                                     <p
                                         className="mt-1 text-[11px] font-bold text-red-600"

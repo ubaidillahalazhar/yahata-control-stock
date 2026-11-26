@@ -1,11 +1,13 @@
 import { router } from '@inertiajs/react';
-import { Bell, CheckCheck, ClipboardList, Info, UserPlus, X } from 'lucide-react';
+import { Bell, CheckCheck, ClipboardList, Clock, Info, TriangleAlert, UserPlus, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/Components/ui';
 
 const KIND_STYLES = {
     registration: { icon: UserPlus, tone: 'bg-amber-100 text-amber-700' },
     damage_report: { icon: ClipboardList, tone: 'bg-red-100 text-red-700' },
+    review: { icon: TriangleAlert, tone: 'bg-amber-100 text-amber-700' },
+    count_overdue: { icon: Clock, tone: 'bg-red-100 text-red-700' },
     info: { icon: Info, tone: 'bg-slate-100 text-slate-600' },
 };
 

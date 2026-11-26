@@ -96,7 +96,8 @@ export default function UsageImportReview({ preview, onClose }) {
                 <p className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
                     <TriangleAlert className="size-4 shrink-0" />
                     Baris kuning sama persis (Tools Name YES + tanggal + jumlah + PIC) dengan input yang sudah ada / baris
-                    lain di file. Tidak dimasukkan, kecuali Anda centang "Tetap masukkan".
+                    lain di file, atau tanggalnya sudah tercakup pengecekan counter mesin. Tidak dimasukkan, kecuali
+                    Anda centang "Tetap masukkan".
                 </p>
             )}
 
@@ -170,7 +171,10 @@ export default function UsageImportReview({ preview, onClose }) {
                                         ) : row.duplicate ? (
                                             <div className="space-y-1">
                                                 <p className="font-semibold text-amber-800">
-                                                    Kemungkinan duplikat — {row.duplicate.message}
+                                                    {row.duplicate.kind === 'counter'
+                                                        ? 'Kemungkinan terhitung dobel'
+                                                        : 'Kemungkinan duplikat'}{' '}
+                                                    — {row.duplicate.message}
                                                 </p>
                                                 <label className="flex items-center gap-1.5 font-semibold text-slate-700">
                                                     <input

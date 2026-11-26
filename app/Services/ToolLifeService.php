@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\UsageSource;
 use App\Enums\UsageType;
 use App\Models\ToolsInventory;
 use App\Models\ToolUsageLog;
@@ -16,6 +17,8 @@ use Illuminate\Validation\ValidationException;
  * - `tools_inventory.life_used` hanya cache: dihitung ulang dari log setiap kali ada
  *   input / pembatalan / reset, di dalam transaksi + row lock yang sama.
  * - Life terpakai = total USAGE aktif setelah RESET aktif terakhir (urut tanggal, lalu id).
+ *   ADJUST (koreksi count siklus lama dari laporan kerusakan) tidak pernah menambah life,
+ *   tetapi tetap masuk Actual bulanan.
  *
  * Batas warna & status bersifat tetap (bukan pengaturan client):
  *   hijau < 50% · kuning 50–79% · merah ≥ 80% (= Status Life ORDER).
@@ -76,9 +79,25 @@ final class ToolLifeService
         ];
     }
 
-    public function recordUsage(int $toolId, string $usageDate, int $qty, string $picName, ?string $notes = null, ?string $batchNo = null): ToolUsageLog
+    public function recordUsage(
+        int $toolId,
+        string $usageDate,
+        int $qty,
+        string $picName,
+        ?string $notes = null,
+        ?string $batchNo = null,
+        UsageSource $source = UsageSource::Manual,
+    ): ToolUsageLog {
+        return $this->write($toolId, UsageType::Usage, $usageDate, $qty, $picName, $notes, $batchNo, $source);
+    }
+
+    /**
+     * Koreksi count untuk siklus tool yang sudah ditutup laporan kerusakan.
+     * Masuk Actual bulanan, tetapi tidak menambah life tool yang sedang berjalan (recalculate() hanya USAGE).
+     */
+    public function adjust(int $toolId, string $usageDate, int $qty, string $picName, ?string $notes, int $damageReportId): ToolUsageLog
     {
-        return $this->write($toolId, UsageType::Usage, $usageDate, $qty, $picName, $notes, $batchNo);
+        return $this->write($toolId, UsageType::Adjust, $usageDate, $qty, $picName, $notes, null, UsageSource::Damage, $damageReportId);
     }
 
     /**
@@ -110,6 +129,7 @@ final class ToolLifeService
                     picName: $row['pic_name'],
                     notes: $row['notes'] ?? null,
                     batchNo: $batchNo,
+                    source: UsageSource::Excel,
                 );
             }
 
@@ -202,9 +222,11 @@ final class ToolLifeService
      * Tool diganti baru: life terpakai kembali ke 0 mulai tanggal ini.
      * Stok tidak diubah di sini (pengambilan tool cadangan dicatat lewat Transaksi OUT).
      */
-    public function reset(int $toolId, string $usageDate, string $picName, ?string $notes = null): ToolUsageLog
+    public function reset(int $toolId, string $usageDate, string $picName, ?string $notes = null, ?int $damageReportId = null): ToolUsageLog
     {
-        return $this->write($toolId, UsageType::Reset, $usageDate, 0, $picName, $notes);
+        $source = $damageReportId !== null ? UsageSource::Damage : UsageSource::Manual;
+
+        return $this->write($toolId, UsageType::Reset, $usageDate, 0, $picName, $notes, null, $source, $damageReportId);
     }
 
     public function cancel(ToolUsageLog $log, string $picName, ?string $reason = null): ToolUsageLog
@@ -317,7 +339,10 @@ final class ToolLifeService
                 if ($log->type === UsageType::Usage) {
                     $result[$log->tool_id][$key]['actual_qty'] += $log->qty;
                     $result[$log->tool_id][$key]['usage_inputs']++;
-                } else {
+                } elseif ($log->type === UsageType::Adjust) {
+                    // Koreksi dari counter mesin: menambah Actual, bukan jumlah input / ganti tool.
+                    $result[$log->tool_id][$key]['actual_qty'] += $log->qty;
+                } elseif ($log->type === UsageType::Reset) {
                     $result[$log->tool_id][$key]['tools_replaced']++;
                 }
             });
@@ -339,9 +364,18 @@ final class ToolLifeService
         return $months;
     }
 
-    private function write(int $toolId, UsageType $type, string $usageDate, int $qty, string $picName, ?string $notes, ?string $batchNo = null): ToolUsageLog
-    {
-        return DB::transaction(function () use ($toolId, $type, $usageDate, $qty, $picName, $notes, $batchNo): ToolUsageLog {
+    private function write(
+        int $toolId,
+        UsageType $type,
+        string $usageDate,
+        int $qty,
+        string $picName,
+        ?string $notes,
+        ?string $batchNo = null,
+        UsageSource $source = UsageSource::Manual,
+        ?int $damageReportId = null,
+    ): ToolUsageLog {
+        return DB::transaction(function () use ($toolId, $type, $usageDate, $qty, $picName, $notes, $batchNo, $source, $damageReportId): ToolUsageLog {
             $tool = $this->stock->lockTool($toolId);
             $before = (int) $tool->life_used;
 
@@ -355,6 +389,8 @@ final class ToolLifeService
                 'pic_name' => self::clean($picName),
                 'notes' => self::clean($notes),
                 'batch_no' => $batchNo,
+                'source' => $source,
+                'damage_report_id' => $damageReportId,
             ]);
 
             $after = $this->recalculate($tool);

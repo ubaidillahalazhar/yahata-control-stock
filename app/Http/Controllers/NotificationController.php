@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\UserStatus;
 use App\Models\User;
+use App\Services\ShotCountService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
@@ -20,6 +21,9 @@ class NotificationController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
+
+        // Laporan "menunggu count" > 24 jam → buat notifikasinya sekarang (tanpa scheduler/cron di server).
+        rescue(fn () => ShotCountService::notifyOverdueCounts());
 
         return response()->json([
             'unread_count' => $user->unreadNotifications()->count(),

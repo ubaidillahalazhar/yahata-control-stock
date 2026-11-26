@@ -103,6 +103,47 @@ class UsageImportTest extends TestCase
     }
 
     #[Test]
+    public function rows_dated_on_or_before_latest_replace_new_report_are_held_until_admin_includes_them(): void
+    {
+        // Laporan kerusakan Ganti Baru chuck tgl 22/11 (count mesin dibawa) → pemakaian s.d. 22/11 sudah tercakup.
+        $admin = auth()->user();
+        $this->travelTo('2026-11-22 08:00:00');
+        $this->actingAs($this->createPic())->post('/damage-reports', [
+            'tool_id' => $this->chuck->id,
+            'operator_name' => 'Operator',
+            'shift' => 1,
+            'qty_replaced' => 1,
+            'actual_shot_count' => 5_000,
+            'damage_reason' => 'CHIPPING',
+            'action' => 'REPLACE_NEW',
+        ])->assertSessionHasNoErrors();
+        $this->actingAs($admin);
+        $this->travelTo('2026-11-24 10:00:00');
+
+        $preview = $this->preview([
+            ['CBP136 1# CUK COLLAR 19.9', $this->serial('2026-11-21'), 1200, 'Sari', null], // baris 2 → ditahan
+            ['CBP136 1# CUK COLLAR 19.9', $this->serial('2026-11-22'), 800, 'Sari', null],  // baris 3 → ditahan (sama tanggal)
+            ['CBP136 1# CUK COLLAR 19.9', $this->serial('2026-11-23'), 900, 'Sari', null],  // baris 4 → OK
+            ['CBP136 2# PPN COLLAR 19.9', $this->serial('2026-11-21'), 700, 'Sari', null],  // baris 5 → tool lain, OK
+        ]);
+
+        $this->assertSame('counter', $preview['rows'][0]['duplicate']['kind']);
+        $this->assertStringContainsString('22/11/2026', $preview['rows'][0]['duplicate']['message']);
+        $this->assertSame('counter', $preview['rows'][1]['duplicate']['kind']);
+        $this->assertNull($preview['rows'][2]['duplicate']);
+        $this->assertNull($preview['rows'][3]['duplicate']);
+        $this->assertSame(2, $preview['summary']['duplicate_rows']);
+
+        // Admin hanya mencentang baris 3 → baris 2 tidak pernah masuk database (tidak perlu dihapus).
+        $this->post('/sync/usage-apply', ['token' => $preview['token'], 'include_duplicates' => [3]])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseMissing('tool_usage_logs', ['tool_id' => $this->chuck->id, 'qty' => 1200]);
+        $this->assertDatabaseHas('tool_usage_logs', ['tool_id' => $this->chuck->id, 'qty' => 800, 'source' => 'excel']);
+        $this->assertDatabaseHas('tool_usage_logs', ['tool_id' => $this->chuck->id, 'qty' => 900, 'source' => 'excel']);
+        $this->assertDatabaseHas('tool_usage_logs', ['tool_id' => $this->punch->id, 'qty' => 700]);
+    }
+
+    #[Test]
     public function template_has_entry_sheet_tool_list_dropdown_and_guide(): void
     {
         $this->get('/sync/usage-template')->assertOk()->assertDownload('template_pemakaian_life_time.xlsx');

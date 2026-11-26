@@ -164,7 +164,7 @@ final class UsageImportService
             throw ValidationException::withMessages(['usage_file' => 'Tidak ada baris pemakaian yang terisi pada file.']);
         }
 
-        $parsed = $this->markExistingDuplicates($parsed);
+        $parsed = $this->markCounterOverlaps($this->markExistingDuplicates($parsed));
         $valid = array_values(array_filter($parsed, fn (array $row): bool => $row['problems'] === []));
 
         // Simulasi life per tool (pemakaian sebelum Ganti Tool terakhir tidak menambah life tool sekarang).
@@ -243,7 +243,7 @@ final class UsageImportService
                 array_filter($cached['rows'], fn (array $row): bool => $row['duplicate'] !== null),
                 'row',
             ));
-            $rows = $this->markExistingDuplicates($cached['rows']);
+            $rows = $this->markCounterOverlaps($this->markExistingDuplicates($cached['rows']));
             $newlyDuplicated = array_filter(
                 $rows,
                 fn (array $row): bool => $row['duplicate'] !== null && ! isset($flaggedAtPreview[$row['row']]),
@@ -317,6 +317,43 @@ final class UsageImportService
                 $row['duplicate'] = [
                     'kind' => 'existing',
                     'message' => 'Sudah pernah diinput ('.$source.', '.$log->created_at?->format('d/m/Y H:i').')',
+                ];
+            }
+        }
+        unset($row);
+
+        return $rows;
+    }
+
+    /**
+     * Tahan baris yang tanggalnya ≤ pengecekan counter mesin terakhir tool tersebut
+     * (laporan kerusakan Ganti Baru): pemakaian sampai tanggal itu sudah
+     * tercakup angka counter, jadi kemungkinan terhitung dobel. Sama seperti duplikat:
+     * tidak dimasukkan kecuali admin mencentang "Tetap masukkan".
+     *
+     * @param  list<array<string, mixed>>  $rows
+     * @return list<array<string, mixed>>
+     */
+    private function markCounterOverlaps(array $rows): array
+    {
+        $candidates = array_filter($rows, fn (array $row): bool => $row['problems'] === [] && $row['duplicate'] === null);
+        $checkpoints = ShotCountService::latestCheckpoints(array_values(array_unique(array_column($candidates, 'tool_id'))));
+
+        if ($checkpoints === []) {
+            return $rows;
+        }
+
+        foreach ($rows as &$row) {
+            $checkpoint = $row['problems'] === [] && $row['duplicate'] === null ? ($checkpoints[$row['tool_id']] ?? null) : null;
+
+            if ($checkpoint !== null && $row['usage_date'] <= $checkpoint['date']) {
+                $row['duplicate'] = [
+                    'kind' => 'counter',
+                    'message' => sprintf(
+                        'Counter mesin tool ini sudah dicatat %s (%s) — pemakaian sampai tanggal itu sudah tercakup',
+                        CarbonImmutable::parse($checkpoint['date'])->format('d/m/Y'),
+                        $checkpoint['source'],
+                    ),
                 ];
             }
         }

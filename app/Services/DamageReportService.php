@@ -11,13 +11,18 @@ use Illuminate\Support\Facades\DB;
 
 final class DamageReportService
 {
-    public function __construct(private readonly StockMutationService $mutations) {}
+    public function __construct(
+        private readonly StockMutationService $mutations,
+        private readonly ShotCountService $shotCount,
+    ) {}
 
     /**
-     * Simpan laporan kerusakan. Jika tindakan REPLACE_NEW, stok dipotong otomatis dan
-     * transaksi DAMAGE_REPLACEMENT dicatat — semuanya dalam satu transaksi database.
+     * Simpan laporan kerusakan — semuanya dalam satu transaksi database:
+     * - REPLACE_NEW: stok dipotong (transaksi DAMAGE_REPLACEMENT), lalu siklus life ditutup
+     *   (snapshot + koreksi count + reset life). Count boleh "belum dibawa" (diisi belakangan).
+     * - REGRIND_REPAIR: stok & life tidak berubah (aturan regrind masih ditunda).
      *
-     * @param  array{tool_id: int, user_id?: ?int, operator_name: string, shift: int, qty_replaced: int, actual_shot_count: int, damage_reason: string, action: string, notes?: ?string}  $data
+     * @param  array{tool_id: int, user_id?: ?int, operator_name: string, shift: int, qty_replaced: int, actual_shot_count?: ?int, count_pending?: bool, damage_reason: string, action: string, notes?: ?string}  $data
      *
      * @throws InsufficientStockException
      */
@@ -29,6 +34,8 @@ final class DamageReportService
             $reason = DamageReason::from($data['damage_reason']);
             $qty = (int) $data['qty_replaced'];
             $stockBefore = (int) $tool->current_stock;
+            $countPending = $action === DamageAction::ReplaceNew && (bool) ($data['count_pending'] ?? false);
+            $shotCount = $countPending || ! isset($data['actual_shot_count']) ? null : (int) $data['actual_shot_count'];
 
             if ($action->cutsStock() && $stockBefore < $qty) {
                 throw new InsufficientStockException($tool, $stockBefore, $qty);
@@ -39,7 +46,8 @@ final class DamageReportService
                 'operator_name' => trim($data['operator_name']),
                 'shift' => (int) $data['shift'],
                 'qty_replaced' => $qty,
-                'actual_shot_count' => (int) $data['actual_shot_count'],
+                'actual_shot_count' => $shotCount,
+                'count_pending' => $countPending,
                 'damage_reason' => $reason,
                 'action' => $action,
                 'stock_before' => $stockBefore,
@@ -59,12 +67,16 @@ final class DamageReportService
                         'Shift %d · %s · Shot count %s',
                         $report->shift,
                         $reason->label(),
-                        number_format($report->actual_shot_count, 0, ',', '.'),
+                        $shotCount === null ? 'menunggu' : number_format($shotCount, 0, ',', '.'),
                     ),
                     'damage_report_id' => $report->id,
                 ]);
 
                 $report->stock_after = $transaction->stock_after;
+            }
+
+            if ($action === DamageAction::ReplaceNew) {
+                $this->shotCount->closeCycle($report, $tool);
             }
 
             $report->save();

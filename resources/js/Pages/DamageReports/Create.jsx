@@ -14,11 +14,13 @@ import {
     Zap,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import ShotCountCompare from '@/Components/ShotCountCompare';
 import StatusBadge from '@/Components/StatusBadge';
 import ToolCombobox from '@/Components/ToolCombobox';
 import { Button, Card, Field, Input, Textarea, cn } from '@/Components/ui';
 import MobileLayout from '@/Layouts/MobileLayout';
 import { formatInt } from '@/lib/format';
+import { compareCounter, confirmMessage } from '@/lib/shotCount';
 import { readStorage, STORAGE_KEYS, writeStorage } from '@/lib/storage';
 
 const REASON_ICONS = { CHIPPING: Zap, WEAR_NORMAL: Gauge, BROKEN: Unlink, SETUP_ERROR: Settings2 };
@@ -30,16 +32,19 @@ export default function Create({ tools, selectedToolId, scope, reasons, actions 
     // PIC melapor atas nama akunnya sendiri; hanya admin yang boleh mengisi nama operator lain.
     const operatorLocked = Boolean(authUser && !authUser.is_admin);
     const savedShift = Number(readStorage(STORAGE_KEYS.shift));
-    const { data, setData, post, processing, errors } = useForm({
+    const { data, setData, post, processing, errors, transform } = useForm({
         tool_id: selectedToolId ?? '',
         operator_name: operatorLocked ? authUser.name : readStorage(STORAGE_KEYS.operatorName),
         shift: SHIFTS.includes(savedShift) ? savedShift : '',
         qty_replaced: 1,
         actual_shot_count: '',
+        count_pending: false,
         damage_reason: '',
         action: 'REPLACE_NEW',
         notes: '',
     });
+    const isReplace = data.action === 'REPLACE_NEW';
+    const countPending = isReplace && data.count_pending;
 
     const hasScope = Boolean(scope?.machine || scope?.rack);
     const [scoped, setScoped] = useState(hasScope);
@@ -62,16 +67,28 @@ export default function Create({ tools, selectedToolId, scope, reasons, actions 
     const insufficient = Boolean(tool && cutsStock && stockAfter < 0);
     const shotCount = Number(data.actual_shot_count);
     const lifeUsage =
-        tool && data.actual_shot_count !== '' && tool.life_time > 0
+        tool && data.actual_shot_count !== '' && !countPending && tool.life_time > 0
             ? Math.round((shotCount / tool.life_time) * 100)
             : null;
+    // Hanya ganti baru yang menutup siklus life → hanya itu yang dibandingkan dengan sistem.
+    const comparison = tool && isReplace && !countPending ? compareCounter(data.actual_shot_count, tool.life_used ?? 0) : null;
 
     const submit = (event) => {
         event.preventDefault();
+
+        if (comparison?.confirm && !window.confirm(confirmMessage(comparison))) {
+            return;
+        }
         if (!operatorLocked) {
             writeStorage(STORAGE_KEYS.operatorName, data.operator_name);
         }
         writeStorage(STORAGE_KEYS.shift, data.shift);
+        // Centang "count belum dibawa" hanya berlaku untuk ganti baru.
+        transform((payload) => ({
+            ...payload,
+            count_pending: countPending,
+            actual_shot_count: countPending ? null : payload.actual_shot_count,
+        }));
         post('/damage-reports', { preserveScroll: true });
     };
 
@@ -200,22 +217,54 @@ export default function Create({ tools, selectedToolId, scope, reasons, actions 
                             </Field>
                             <Field
                                 label="Aktual Shot Count"
-                                required
+                                required={!countPending}
                                 error={errors.actual_shot_count}
-                                hint={lifeUsage !== null ? `${lifeUsage}% dari life time` : 'Shot sebelum rusak'}
+                                hint={
+                                    countPending
+                                        ? 'Diisi nanti dari Riwayat'
+                                        : lifeUsage !== null
+                                          ? `${lifeUsage}% dari life time`
+                                          : 'Angka counter mesin'
+                                }
                             >
                                 <Input
                                     type="number"
                                     inputMode="numeric"
                                     min={0}
-                                    value={data.actual_shot_count}
+                                    value={countPending ? '' : data.actual_shot_count}
                                     onChange={(event) => setData('actual_shot_count', event.target.value)}
                                     invalid={Boolean(errors.actual_shot_count)}
-                                    placeholder="mis. 185000"
-                                    className="h-12 text-base font-semibold tabular-nums"
+                                    placeholder={countPending ? 'menunggu' : 'mis. 185000'}
+                                    disabled={countPending}
+                                    className="h-12 text-base font-semibold tabular-nums disabled:bg-slate-100"
                                 />
                             </Field>
                         </div>
+
+                        {isReplace && (
+                            <label className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm">
+                                <input
+                                    type="checkbox"
+                                    checked={data.count_pending}
+                                    onChange={(event) => setData('count_pending', event.target.checked)}
+                                    className="mt-0.5 size-4"
+                                />
+                                <span>
+                                    <span className="font-semibold text-slate-800">Count belum dibawa</span>
+                                    <span className="block text-xs text-slate-500">
+                                        Laporan tetap disimpan dan stok tetap dipotong. Lengkapi angka counter nanti dari
+                                        Riwayat Laporan (admin diberi peringatan setelah 24 jam).
+                                    </span>
+                                </span>
+                            </label>
+                        )}
+                        {errors.count_pending && (
+                            <p className="text-xs font-semibold text-red-600">{errors.count_pending}</p>
+                        )}
+
+                        {tool && isReplace && !countPending && (
+                            <ShotCountCompare system={tool.life_used ?? 0} comparison={comparison} mode="close" />
+                        )}
 
                         <Field label="Alasan Kerusakan" required error={errors.damage_reason}>
                             <div className="grid grid-cols-2 gap-2">
