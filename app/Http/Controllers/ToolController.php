@@ -9,11 +9,25 @@ use App\Http\Resources\ToolUsageLogResource;
 use App\Models\ToolsInventory;
 use App\Services\ToolingCalculatorService;
 use App\Services\ToolLifeService;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class ToolController extends Controller
 {
+    /**
+     * Halaman Cek Stok & QR Tooling khusus operator PIC.
+     */
+    public function picIndex(Request $request): Response
+    {
+        $tools = ToolsInventory::query()->ordered()->get();
+
+        return Inertia::render('Pic/Tools', [
+            'tools' => ToolingResource::collection($tools)->resolve(),
+            'defaultMachine' => $request->user()?->machine_name,
+        ]);
+    }
+
     /**
      * Detail item: breakdown seluruh rumus per bulan + histori transaksi & kerusakan.
      */

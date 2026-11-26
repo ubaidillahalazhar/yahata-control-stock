@@ -15,6 +15,7 @@ use App\Http\Controllers\ToolController;
 use App\Http\Controllers\ToolUsageController;
 use App\Http\Controllers\UsageImportController;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
 // 1. Halaman Tamu (Belum Login: Login & Registrasi PIC — registrasi menunggu persetujuan admin)
 Route::middleware('guest')->group(function () {
@@ -30,6 +31,10 @@ Route::middleware(['auth', 'account.usable'])->group(function () {
     Route::get('/account/pin', [AuthController::class, 'editPin'])->name('account.pin.edit');
     Route::put('/account/pin', [AuthController::class, 'updatePin'])->name('account.pin.update');
 
+    // Portal Menu Utama PIC (Layout 2x2 Grid) & Halaman Cek Stok Tooling
+    Route::get('/pic/dashboard', fn () => Inertia::render('Pic/Dashboard'))->name('pic.dashboard');
+    Route::get('/pic/tools', [ToolController::class, 'picIndex'])->name('pic.tools');
+
     // Module 3 — QR Damage & Part Replacement Form + History (PIC hanya melihat laporannya sendiri)
     Route::get('/damage-reports', [DamageReportController::class, 'index'])->name('damage-reports.index');
     Route::get('/damage-reports/create', [DamageReportController::class, 'create'])->name('damage-reports.create');
@@ -37,6 +42,16 @@ Route::middleware(['auth', 'account.usable'])->group(function () {
     Route::get('/damage-reports/{damageReport}', [DamageReportController::class, 'show'])
         ->whereNumber('damageReport')
         ->name('damage-reports.show');
+
+    // Pemakaian Life Time (Day) — dapat diakses oleh PIC & Admin
+    Route::get('/tool-usages', [ToolUsageController::class, 'index'])->name('tool-usages.index');
+    Route::post('/tool-usages', [ToolUsageController::class, 'store'])->name('tool-usages.store');
+    Route::post('/tool-usages/{usage}/cancel', [ToolUsageController::class, 'cancel'])
+        ->whereNumber('usage')
+        ->name('tool-usages.cancel');
+    Route::post('/tool-usages/batches/{batch}/cancel', [ToolUsageController::class, 'cancelBatch'])
+        ->where('batch', 'PLT-[0-9A-Za-z\-]+')
+        ->name('tool-usages.cancel-batch');
 
     // 3. Khusus Admin
     Route::middleware('admin')->group(function () {
@@ -46,19 +61,17 @@ Route::middleware(['auth', 'account.usable'])->group(function () {
             ->whereNumber('tool')
             ->name('tools.show');
 
+        // Reset Life Time alat tetap dikunci khusus Admin
+        Route::post('/tools/{tool}/life-reset', [ToolUsageController::class, 'reset'])
+            ->whereNumber('tool')
+            ->name('tools.life-reset');
+
         // Module 2 — Quick Stock Transaction (IN / OUT)
         Route::get('/transactions/create', [StockTransactionController::class, 'create'])->name('transactions.create');
         Route::post('/transactions', [StockTransactionController::class, 'store'])->name('transactions.store');
         Route::get('/transactions/{stockTransaction}', [StockTransactionController::class, 'show'])
             ->whereNumber('stockTransaction')
             ->name('transactions.show');
-
-        // Pemakaian Life Time (Day) — input pemakaian harian
-        Route::get('/tool-usages', [ToolUsageController::class, 'index'])->name('tool-usages.index');
-        Route::post('/tool-usages', [ToolUsageController::class, 'store'])->name('tool-usages.store');
-        Route::post('/tool-usages/{usage}/cancel', [ToolUsageController::class, 'cancel'])->whereNumber('usage')->name('tool-usages.cancel');
-        Route::post('/tool-usages/batches/{batch}/cancel', [ToolUsageController::class, 'cancelBatch'])->where('batch', 'PLT-[0-9A-Za-z\-]+')->name('tool-usages.cancel-batch');
-        Route::post('/tools/{tool}/life-reset', [ToolUsageController::class, 'reset'])->whereNumber('tool')->name('tools.life-reset');
 
         Route::get('/qr-labels', QrLabelController::class)->name('qr-labels.index');
 

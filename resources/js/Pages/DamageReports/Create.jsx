@@ -17,7 +17,8 @@ import { useMemo, useState } from 'react';
 import StatusBadge from '@/Components/StatusBadge';
 import ToolCombobox from '@/Components/ToolCombobox';
 import { Button, Card, Field, Input, Textarea, cn } from '@/Components/ui';
-import MobileLayout from '@/Layouts/MobileLayout';
+import AppLayout from '@/Layouts/AppLayout';
+import PicLayout from '@/Layouts/PicLayout';
 import { formatInt } from '@/lib/format';
 import { readStorage, STORAGE_KEYS, writeStorage } from '@/lib/storage';
 
@@ -27,9 +28,11 @@ const SHIFTS = [1, 2, 3];
 
 export default function Create({ tools, selectedToolId, scope, reasons, actions }) {
     const authUser = usePage().props.auth?.user ?? null;
+    const isAdmin = Boolean(authUser?.is_admin);
     // PIC melapor atas nama akunnya sendiri; hanya admin yang boleh mengisi nama operator lain.
-    const operatorLocked = Boolean(authUser && !authUser.is_admin);
+    const operatorLocked = Boolean(authUser && !isAdmin);
     const savedShift = Number(readStorage(STORAGE_KEYS.shift));
+
     const { data, setData, post, processing, errors } = useForm({
         tool_id: selectedToolId ?? '',
         operator_name: operatorLocked ? authUser.name : readStorage(STORAGE_KEYS.operatorName),
@@ -75,9 +78,20 @@ export default function Create({ tools, selectedToolId, scope, reasons, actions 
         post('/damage-reports', { preserveScroll: true });
     };
 
-    return (
-        <MobileLayout title="Laporan Kerusakan & Penggantian Part">
-            <form onSubmit={submit} className="space-y-4">
+    const formContent = (
+        <div className="mx-auto max-w-xl">
+            {!isAdmin && (
+                <div className="mb-4">
+                    <h1 className="text-lg font-extrabold tracking-tight text-slate-900 sm:text-xl">
+                        Laporan Kerusakan &amp; Penggantian Part
+                    </h1>
+                    <p className="text-xs text-slate-500 sm:text-sm">
+                        Pilih item tooling yang rusak dan lengkapi detail penggantian part.
+                    </p>
+                </div>
+            )}
+
+            <form onSubmit={submit} className="space-y-4 pb-24">
                 <Section number={1} title="Item Tooling">
                     {hasScope && (
                         <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
@@ -319,7 +333,12 @@ export default function Create({ tools, selectedToolId, scope, reasons, actions 
                     </Field>
                 </Section>
 
-                <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
+                <div
+                    className={cn(
+                        'fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur',
+                        isAdmin && 'lg:pl-64',
+                    )}
+                >
                     <div className="mx-auto flex max-w-xl gap-2">
                         {tool && (
                             <Button
@@ -343,8 +362,21 @@ export default function Create({ tools, selectedToolId, scope, reasons, actions 
                     </div>
                 </div>
             </form>
-        </MobileLayout>
+        </div>
     );
+
+    if (isAdmin) {
+        return (
+            <AppLayout
+                title="Form Kerusakan (QR)"
+                subtitle="Input laporan kerusakan & penggantian part tooling"
+            >
+                {formContent}
+            </AppLayout>
+        );
+    }
+
+    return <PicLayout showMenuButton>{formContent}</PicLayout>;
 }
 
 function Section({ number, title, children }) {

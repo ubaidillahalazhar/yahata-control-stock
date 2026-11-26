@@ -79,8 +79,10 @@ class AuthController extends Controller
                 ->with('success', sprintf('Halo %s, silakan ganti %s sementara Anda terlebih dahulu.', $user->name, $user->secretLabel()));
         }
 
+        $homeUrl = $user->isAdmin() ? $user->homeUrl() : route('pic.dashboard');
+
         return redirect()
-            ->intended($user->homeUrl())
+            ->intended($homeUrl)
             ->with('success', sprintf('Selamat datang, %s (%s).', $user->name, $user->isAdmin() ? 'Admin' : 'PIC Mesin'));
     }
 
@@ -168,7 +170,9 @@ class AuthController extends Controller
             'must_change_password' => false,
         ])->save();
 
-        return redirect($user->homeUrl())
+        $homeUrl = $user->isAdmin() ? $user->homeUrl() : route('pic.dashboard');
+
+        return redirect($homeUrl)
             ->with('success', sprintf('%s berhasil diganti.', ucfirst($user->secretLabel())));
     }
 
