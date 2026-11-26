@@ -32,7 +32,18 @@ class StoreToolUsageRequest extends FormRequest
             'qty' => $isReset ? [] : ['required', 'integer', 'min:1', 'max:'.self::MAX_QTY],
             'pic_name' => ['required', 'string', 'max:100'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'confirm_unusual' => ['nullable', 'boolean'],
         ];
+    }
+
+    /** PIC mencatat atas nama akunnya sendiri; hanya admin yang boleh mengisi nama PIC lain. */
+    protected function prepareForValidation(): void
+    {
+        $user = $this->user();
+
+        if ($user !== null && ! $user->isAdmin()) {
+            $this->merge(['pic_name' => $user->name]);
+        }
     }
 
     public function attributes(): array

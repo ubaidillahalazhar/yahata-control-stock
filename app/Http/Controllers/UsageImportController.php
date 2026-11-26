@@ -53,6 +53,7 @@ class UsageImportController extends Controller
         $result = $this->import->apply(
             token: $request->validated('token'),
             includeDuplicateRows: $request->validated('include_duplicates') ?? [],
+            confirmUnusual: $request->boolean('confirm_unusual'),
         );
 
         return back()

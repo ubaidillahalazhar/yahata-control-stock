@@ -46,15 +46,16 @@ Route::middleware(['auth', 'account.usable'])->group(function () {
         ->whereNumber('damageReport')
         ->name('damage-reports.count');
 
-    // Pemakaian Life Time (Day) — dapat diakses oleh PIC & Admin
+    // Pemakaian Life Time (Day) — PIC & Admin. PIC hanya boleh batal / koreksi input
+    // miliknya sendiri dalam 24 jam (dicek di ToolUsageController::authorizeChange).
     Route::get('/tool-usages', [ToolUsageController::class, 'index'])->name('tool-usages.index');
     Route::post('/tool-usages', [ToolUsageController::class, 'store'])->name('tool-usages.store');
     Route::post('/tool-usages/{usage}/cancel', [ToolUsageController::class, 'cancel'])
         ->whereNumber('usage')
         ->name('tool-usages.cancel');
-    Route::post('/tool-usages/batches/{batch}/cancel', [ToolUsageController::class, 'cancelBatch'])
-        ->where('batch', 'PLT-[0-9A-Za-z\-]+')
-        ->name('tool-usages.cancel-batch');
+    Route::post('/tool-usages/{usage}/correct', [ToolUsageController::class, 'correct'])
+        ->whereNumber('usage')
+        ->name('tool-usages.correct');
 
     // 3. Khusus Admin
     Route::middleware('admin')->group(function () {
@@ -68,6 +69,11 @@ Route::middleware(['auth', 'account.usable'])->group(function () {
         Route::get('/tools/{tool}', [ToolController::class, 'show'])
             ->whereNumber('tool')
             ->name('tools.show');
+
+        // Batalkan seluruh batch import Excel — khusus admin
+        Route::post('/tool-usages/batches/{batch}/cancel', [ToolUsageController::class, 'cancelBatch'])
+            ->where('batch', 'PLT-[0-9A-Za-z\-]+')
+            ->name('tool-usages.cancel-batch');
 
         // Reset Life Time alat tetap dikunci khusus Admin
         Route::post('/tools/{tool}/life-reset', [ToolUsageController::class, 'reset'])

@@ -1,13 +1,16 @@
 import { Link } from '@inertiajs/react';
-import { Ban, FileSpreadsheet, Gauge, RotateCcw, SlidersHorizontal } from 'lucide-react';
+import { Ban, FileSpreadsheet, Gauge, PencilLine, RotateCcw, SlidersHorizontal } from 'lucide-react';
 import { Button, cn } from '@/Components/ui';
 import { formatInt } from '@/lib/format';
 import { buildUrl } from '@/lib/urls';
 
 /**
- * Riwayat input pemakaian life time. Baris yang dibatalkan tetap tampil (dicoret).
+ * Riwayat input pemakaian life time. Baris yang dibatalkan / dikoreksi tetap tampil (dicoret).
+ * Tombol Koreksi / Batalkan hanya muncul bila `log.can_change` (PIC: input sendiri ≤ 24 jam).
  */
-export default function UsageLogTable({ logs, showTool = false, onCancel }) {
+export default function UsageLogTable({ logs, showTool = false, onCancel, onCorrect }) {
+    const hasActions = Boolean(onCancel || onCorrect);
+
     return (
         <table className="w-full text-sm">
             <thead className="sticky top-0 bg-slate-50 text-xs font-bold text-slate-600 uppercase">
@@ -18,7 +21,7 @@ export default function UsageLogTable({ logs, showTool = false, onCancel }) {
                     <th className="px-4 py-2 text-right">Qty</th>
                     <th className="px-4 py-2 text-right">Life terpakai</th>
                     <th className="px-4 py-2 text-left">PIC / Catatan</th>
-                    {onCancel && <th className="px-4 py-2 text-right">Aksi</th>}
+                    {hasActions && <th className="px-4 py-2 text-right">Aksi</th>}
                 </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -77,12 +80,21 @@ export default function UsageLogTable({ logs, showTool = false, onCancel }) {
                                 {log.source && log.source !== 'manual' && log.source !== 'excel' && (
                                     <p className="mt-1 text-[11px] text-slate-500">{log.source_label}</p>
                                 )}
+                                {log.corrects && (
+                                    <p
+                                        className="mt-1 inline-flex items-center gap-1 rounded bg-orange-50 px-1.5 py-0.5 text-[11px] font-bold text-orange-800 ring-1 ring-orange-600/30 ring-inset"
+                                        title="Input pengganti hasil koreksi"
+                                    >
+                                        <PencilLine className="size-3" /> KOREKSI dari {log.corrects.usage_date_display} ·{' '}
+                                        {formatInt(log.corrects.qty)} pcs
+                                    </p>
+                                )}
                                 {log.is_cancelled && (
                                     <p
                                         className="mt-1 text-[11px] font-bold text-red-600"
                                         title={log.cancel_reason ?? undefined}
                                     >
-                                        DIBATALKAN · {log.cancelled_by}
+                                        {log.is_corrected ? 'DIKOREKSI' : 'DIBATALKAN'} · {log.cancelled_by}
                                     </p>
                                 )}
                             </td>
@@ -109,21 +121,45 @@ export default function UsageLogTable({ logs, showTool = false, onCancel }) {
                                         <FileSpreadsheet className="size-3" /> Excel {log.batch_no}
                                     </Link>
                                 )}
-                                {log.is_cancelled && log.cancel_reason && (
+                                {log.is_cancelled && log.cancel_reason && !log.is_corrected && (
                                     <p className="text-xs text-red-500">Alasan batal: {log.cancel_reason}</p>
                                 )}
+                                {log.is_corrected && (
+                                    <p className="text-xs text-orange-700">{log.cancel_reason}</p>
+                                )}
                             </td>
-                            {onCancel && (
+                            {hasActions && (
                                 <td className="px-4 py-2 text-right">
-                                    {!log.is_cancelled && (
-                                        <Button
-                                            variant="outline-danger"
-                                            size="xs"
-                                            onClick={() => onCancel(log)}
-                                            title="Batalkan input ini"
-                                        >
-                                            <Ban className="size-3.5" /> Batalkan
-                                        </Button>
+                                    {log.can_change && (
+                                        <div className="flex flex-col items-end gap-1">
+                                            <div className="flex justify-end gap-1.5">
+                                                {onCorrect && log.correctable && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="xs"
+                                                        onClick={() => onCorrect(log)}
+                                                        title="Ubah jumlah / tanggal input ini"
+                                                    >
+                                                        <PencilLine className="size-3.5" /> Koreksi
+                                                    </Button>
+                                                )}
+                                                {onCancel && (
+                                                    <Button
+                                                        variant="outline-danger"
+                                                        size="xs"
+                                                        onClick={() => onCancel(log)}
+                                                        title="Batalkan input ini"
+                                                    >
+                                                        <Ban className="size-3.5" /> Batalkan
+                                                    </Button>
+                                                )}
+                                            </div>
+                                            {log.change_until_display && (
+                                                <span className="text-[11px] whitespace-nowrap text-slate-400">
+                                                    s.d. {log.change_until_display}
+                                                </span>
+                                            )}
+                                        </div>
                                     )}
                                 </td>
                             )}

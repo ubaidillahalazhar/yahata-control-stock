@@ -144,6 +144,7 @@ final class UsageImportService
                 'notes' => $cells['notes'],
                 'problems' => $problems,
                 'duplicate' => null,
+                'unusual' => null,
                 'counts_toward_life' => true,
             ];
 
@@ -164,7 +165,7 @@ final class UsageImportService
             throw ValidationException::withMessages(['usage_file' => 'Tidak ada baris pemakaian yang terisi pada file.']);
         }
 
-        $parsed = $this->markCounterOverlaps($this->markExistingDuplicates($parsed));
+        $parsed = $this->markUnusual($this->markCounterOverlaps($this->markExistingDuplicates($parsed)), $tools);
         $valid = array_values(array_filter($parsed, fn (array $row): bool => $row['problems'] === []));
 
         // Simulasi life per tool (pemakaian sebelum Ganti Tool terakhir tidak menambah life tool sekarang).
@@ -210,6 +211,7 @@ final class UsageImportService
                 'valid_rows' => count($valid),
                 'error_rows' => $errorRows,
                 'duplicate_rows' => count(array_filter($valid, fn (array $row): bool => $row['duplicate'] !== null)),
+                'unusual_rows' => count(array_filter($valid, fn (array $row): bool => $row['unusual'] !== null)),
                 'tools' => count($byTool),
             ],
         ];
@@ -219,7 +221,7 @@ final class UsageImportService
      * @param  list<int>  $includeDuplicateRows  nomor baris Excel duplikat yang tetap dimasukkan
      * @return array{batch_no: string, inserted: int, tools: int, total_qty: int, skipped_duplicates: int, file_name: string}
      */
-    public function apply(string $token, array $includeDuplicateRows = []): array
+    public function apply(string $token, array $includeDuplicateRows = [], bool $confirmUnusual = false): array
     {
         $lock = Cache::lock(self::CACHE_PREFIX.'lock:'.$token, 60);
 
@@ -261,6 +263,14 @@ final class UsageImportService
 
             if ($selected === []) {
                 throw ValidationException::withMessages(['usage_import' => 'Tidak ada baris yang dipilih untuk dimasukkan.']);
+            }
+
+            $unusual = count(array_filter($selected, fn (array $row): bool => ($row['unusual'] ?? null) !== null));
+
+            if ($unusual > 0 && ! $confirmUnusual) {
+                throw ValidationException::withMessages([
+                    'confirm_unusual' => "{$unusual} baris berjumlah janggal. Periksa baris bertanda oranye, lalu centang konfirmasi sebelum menerapkan.",
+                ]);
             }
 
             $result = $this->life->importUsages($selected, $this->batchNo());
@@ -355,6 +365,34 @@ final class UsageImportService
                         $checkpoint['source'],
                     ),
                 ];
+            }
+        }
+        unset($row);
+
+        return $rows;
+    }
+
+    /**
+     * Tandai baris valid yang jumlahnya janggal (> 10% life time / > 3× rata-rata harian).
+     * Hanya peringatan: baris tetap masuk, tetapi admin wajib konfirmasi sekali sebelum Terapkan.
+     *
+     * @param  list<array<string, mixed>>  $rows
+     * @param  \Illuminate\Support\Collection<int, ToolsInventory>  $tools
+     * @return list<array<string, mixed>>
+     */
+    private function markUnusual(array $rows, $tools): array
+    {
+        $lifeTimes = $tools->pluck('life_time', 'id');
+        $toolIds = array_values(array_unique(array_filter(array_column($rows, 'tool_id'))));
+        $baselines = UsageAnomalyService::dailyBaselines($toolIds);
+
+        foreach ($rows as &$row) {
+            if ($row['problems'] === []) {
+                $row['unusual'] = UsageAnomalyService::reason(
+                    (int) $row['qty'],
+                    (int) $lifeTimes->get($row['tool_id']),
+                    $baselines[$row['tool_id']] ?? null,
+                );
             }
         }
         unset($row);

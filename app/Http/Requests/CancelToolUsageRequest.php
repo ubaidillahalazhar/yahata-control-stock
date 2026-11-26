@@ -22,6 +22,16 @@ class CancelToolUsageRequest extends FormRequest
         ];
     }
 
+    /** PIC mencatat atas nama akunnya sendiri; hanya admin yang boleh mengisi nama PIC lain. */
+    protected function prepareForValidation(): void
+    {
+        $user = $this->user();
+
+        if ($user !== null && ! $user->isAdmin()) {
+            $this->merge(['pic_name' => $user->name]);
+        }
+    }
+
     public function attributes(): array
     {
         return [

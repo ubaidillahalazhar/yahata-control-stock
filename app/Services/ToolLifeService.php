@@ -252,6 +252,61 @@ final class ToolLifeService
     }
 
     /**
+     * Koreksi satu input Pemakaian (salah jumlah / tanggal): baris lama dibatalkan dengan alasan,
+     * baris baru dibuat & menunjuk baris lama (`corrects_id`). Batch, sumber, dan catatan ikut
+     * baris lama, sehingga "Batalkan seluruh batch" tetap mencakup hasil koreksinya.
+     */
+    public function correct(ToolUsageLog $log, string $usageDate, int $qty, string $picName, string $reason): ToolUsageLog
+    {
+        return DB::transaction(function () use ($log, $usageDate, $qty, $picName, $reason): ToolUsageLog {
+            $tool = $this->stock->lockTool($log->tool_id);
+            $log = ToolUsageLog::query()->whereKey($log->id)->lockForUpdate()->firstOrFail();
+
+            if ($log->isCancelled()) {
+                throw ValidationException::withMessages(['usage' => 'Input ini sudah dibatalkan / dikoreksi sebelumnya.']);
+            }
+
+            if (! $log->isCorrectable()) {
+                throw ValidationException::withMessages(['usage' => 'Hanya input Pemakaian yang bisa dikoreksi.']);
+            }
+
+            if ($log->usage_date->toDateString() === $usageDate && (int) $log->qty === $qty) {
+                throw ValidationException::withMessages(['qty' => 'Tidak ada perubahan: tanggal & jumlah sama dengan input lama.']);
+            }
+
+            $reason = self::clean($reason);
+
+            $log->forceFill([
+                'cancelled_at' => now(),
+                'cancelled_by' => self::clean($picName),
+                'cancel_reason' => 'Dikoreksi: '.$reason,
+            ])->save();
+
+            $tool->forceFill(['life_used' => $this->recalculate($tool)])->save();
+
+            $notes = trim(sprintf(
+                'Koreksi dari %s · %s pcs (%s). %s',
+                $log->usage_date->format('d/m/Y'),
+                number_format((int) $log->qty, 0, ',', '.'),
+                $reason,
+                $log->notes ?? '',
+            ));
+
+            return $this->write(
+                toolId: $tool->id,
+                type: UsageType::Usage,
+                usageDate: $usageDate,
+                qty: $qty,
+                picName: $picName,
+                notes: $notes,
+                batchNo: $log->batch_no,
+                source: $log->source,
+                corrects: $log,
+            );
+        }, StockMutationService::TRANSACTION_ATTEMPTS);
+    }
+
+    /**
      * Hitung ulang life terpakai dari log (dipakai juga untuk perbaikan data).
      */
     public function recalculate(ToolsInventory $tool): int
@@ -374,8 +429,9 @@ final class ToolLifeService
         ?string $batchNo = null,
         UsageSource $source = UsageSource::Manual,
         ?int $damageReportId = null,
+        ?ToolUsageLog $corrects = null,
     ): ToolUsageLog {
-        return DB::transaction(function () use ($toolId, $type, $usageDate, $qty, $picName, $notes, $batchNo, $source, $damageReportId): ToolUsageLog {
+        return DB::transaction(function () use ($toolId, $type, $usageDate, $qty, $picName, $notes, $batchNo, $source, $damageReportId, $corrects): ToolUsageLog {
             $tool = $this->stock->lockTool($toolId);
             $before = (int) $tool->life_used;
 
@@ -391,6 +447,10 @@ final class ToolLifeService
                 'batch_no' => $batchNo,
                 'source' => $source,
                 'damage_report_id' => $damageReportId,
+                // Akun penginput (dasar aturan 24 jam PIC). Null bila dari console / job.
+                'user_id' => auth()->id(),
+                'corrects_id' => $corrects?->id,
+                'first_input_at' => $corrects !== null ? ($corrects->first_input_at ?? $corrects->created_at) : null,
             ]);
 
             $after = $this->recalculate($tool);
