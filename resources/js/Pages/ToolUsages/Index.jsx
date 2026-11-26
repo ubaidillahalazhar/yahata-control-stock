@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import Modal from '@/Components/Modal';
 import Pagination from '@/Components/Pagination';
 import ToolCombobox from '@/Components/ToolCombobox';
-import UsageForm, { CancelBatchForm, CancelUsageForm } from '@/Components/UsageForm';
+import UsageForm, { CancelBatchForm, CancelUsageForm, CorrectUsageForm } from '@/Components/UsageForm';
 import UsageLogTable from '@/Components/UsageLogTable';
 import { Button, Card, CardHeader, EmptyState, Field, Input, Select } from '@/Components/ui';
 import AppLayout from '@/Layouts/AppLayout';
@@ -15,11 +15,13 @@ import { cleanParams } from '@/lib/urls';
 
 const EMPTY_FILTERS = { tool_id: '', batch: '', month: '', type: '', state: '' };
 
-export default function Index({ tools, logs, filters, totals }) {
+export default function Index({ tools, logs, filters, totals, changeWindowHours = 24 }) {
     const isAdmin = Boolean(usePage().props.auth?.user?.is_admin);
     const [form, setForm] = useState({ ...EMPTY_FILTERS, ...filters });
     const [cancelling, setCancelling] = useState(null);
     const closeCancel = useCallback(() => setCancelling(null), []);
+    const [correcting, setCorrecting] = useState(null);
+    const closeCorrect = useCallback(() => setCorrecting(null), []);
     const [inputOpen, setInputOpen] = useState(false);
     const closeInput = useCallback(() => setInputOpen(false), []);
     const [batchCancelOpen, setBatchCancelOpen] = useState(false);
@@ -99,7 +101,7 @@ export default function Index({ tools, logs, filters, totals }) {
                             Import Excel <b className="font-mono">{activeBatch}</b> · {formatInt(totals.rows)} input aktif ·{' '}
                             {formatInt(totals.qty)} pcs
                         </span>
-                        {totals.rows > 0 && (
+                        {isAdmin && totals.rows > 0 && (
                             <Button variant="outline-danger" size="xs" onClick={() => setBatchCancelOpen(true)}>
                                 <Ban className="size-3.5" /> Batalkan seluruh batch
                             </Button>
@@ -115,7 +117,7 @@ export default function Index({ tools, logs, filters, totals }) {
                     />
                 ) : (
                     <div className="overflow-x-auto">
-                        <UsageLogTable logs={logs.data} showTool onCancel={setCancelling} />
+                        <UsageLogTable logs={logs.data} showTool onCancel={setCancelling} onCorrect={setCorrecting} />
                     </div>
                 )}
                 <Pagination meta={logs.meta} links={logs.links} />
@@ -151,6 +153,15 @@ export default function Index({ tools, logs, filters, totals }) {
             >
                 {cancelling && <CancelUsageForm key={cancelling.id} log={cancelling} onSuccess={closeCancel} />}
             </Modal>
+
+            <Modal
+                open={correcting !== null}
+                onClose={closeCorrect}
+                title="Koreksi Input Pemakaian"
+                subtitle={correcting?.tool?.tools_name_yes}
+            >
+                {correcting && <CorrectUsageForm key={correcting.id} log={correcting} onSuccess={closeCorrect} />}
+            </Modal>
         </>
     );
 
@@ -158,7 +169,7 @@ export default function Index({ tools, logs, filters, totals }) {
         return (
             <AppLayout
                 title="Pemakaian Life Time (Day)"
-                subtitle="Riwayat lengkap seluruh input pemakaian & ganti tool · salah input → batalkan, lalu input ulang"
+                subtitle="Riwayat lengkap seluruh input pemakaian & ganti tool · salah jumlah / tanggal → Koreksi"
                 actions={
                     <Button size="sm" onClick={() => setInputOpen(true)}>
                         <Gauge className="size-4" /> Input Pemakaian
@@ -178,7 +189,8 @@ export default function Index({ tools, logs, filters, totals }) {
                         Count Lifetime — Pemakaian Life Time (Day)
                     </h1>
                     <p className="text-xs text-slate-500 sm:text-sm">
-                        Catat &amp; pantau pemakaian harian tooling · salah input dapat dibatalkan lalu diinput ulang
+                        Catat &amp; pantau pemakaian harian tooling · input Anda bisa dikoreksi / dibatalkan
+                        maks. {changeWindowHours} jam setelah dicatat; lewat dari itu hubungi admin
                     </p>
                 </div>
                 <Button size="sm" onClick={() => setInputOpen(true)}>

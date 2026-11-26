@@ -19,7 +19,7 @@ import Modal from '@/Components/Modal';
 import StatusBadge, { CheckBadge, TransactionTypeBadge } from '@/Components/StatusBadge';
 import LifeBar from '@/Components/LifeBar';
 import TransactionForm from '@/Components/TransactionForm';
-import UsageForm, { CancelUsageForm, ResetLifeForm } from '@/Components/UsageForm';
+import UsageForm, { CancelUsageForm, CorrectUsageForm, ResetLifeForm } from '@/Components/UsageForm';
 import UsageLogTable from '@/Components/UsageLogTable';
 import { Button, Card, CardHeader, EmptyState, Stat, cn } from '@/Components/ui';
 import AppLayout from '@/Layouts/AppLayout';
@@ -42,7 +42,9 @@ export default function Show({ tool, transactions, damageReports, usageLogs, for
             ? 'Input Pemakaian Life Time'
             : lifeAction === 'reset'
               ? 'Ganti Tool (Reset Life)'
-              : 'Batalkan Input';
+              : lifeAction?.kind === 'correct'
+                ? 'Koreksi Input Pemakaian'
+                : 'Batalkan Input';
     const months = useMemo(() => monthLabels(tool.forecast_months), [tool.forecast_months]);
     const { base, isLocal } = useMemo(() => resolveQrBase(app?.url), [app?.url]);
     const qrUrl = damageFormUrl(base, { tool_id: tool.id });
@@ -414,7 +416,11 @@ export default function Show({ tool, transactions, damageReports, usageLogs, for
                     />
                 ) : (
                     <div className="max-h-[420px] overflow-auto">
-                        <UsageLogTable logs={usageLogs} onCancel={setLifeAction} />
+                        <UsageLogTable
+                            logs={usageLogs}
+                            onCancel={(log) => setLifeAction({ kind: 'cancel', log })}
+                            onCorrect={(log) => setLifeAction({ kind: 'correct', log })}
+                        />
                     </div>
                 )}
             </Card>
@@ -534,8 +540,15 @@ export default function Show({ tool, transactions, damageReports, usageLogs, for
                     <UsageForm tools={[tool]} initialToolId={tool.id} onSuccess={closeLifeAction} />
                 )}
                 {lifeAction === 'reset' && <ResetLifeForm tool={tool} onSuccess={closeLifeAction} />}
-                {lifeAction !== null && typeof lifeAction === 'object' && (
-                    <CancelUsageForm key={lifeAction.id} log={lifeAction} onSuccess={closeLifeAction} />
+                {lifeAction?.kind === 'cancel' && (
+                    <CancelUsageForm key={lifeAction.log.id} log={lifeAction.log} onSuccess={closeLifeAction} />
+                )}
+                {lifeAction?.kind === 'correct' && (
+                    <CorrectUsageForm
+                        key={lifeAction.log.id}
+                        log={{ ...lifeAction.log, tool: lifeAction.log.tool ?? { life_time: tool.life_time } }}
+                        onSuccess={closeLifeAction}
+                    />
                 )}
             </Modal>
 

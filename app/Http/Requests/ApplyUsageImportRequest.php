@@ -20,6 +20,7 @@ class ApplyUsageImportRequest extends FormRequest
             'token' => ['required', 'uuid'],
             'include_duplicates' => ['nullable', 'array'],
             'include_duplicates.*' => ['integer', 'min:2'],
+            'confirm_unusual' => ['nullable', 'boolean'],
         ];
     }
 

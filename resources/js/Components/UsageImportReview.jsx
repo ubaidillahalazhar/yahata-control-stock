@@ -13,7 +13,7 @@ import { LIFE_TONES, lifeSummary } from '@/lib/life';
 export default function UsageImportReview({ preview, onClose }) {
     const [included, setIncluded] = useState(() => new Set());
     const [onlyProblems, setOnlyProblems] = useState(preview.summary.error_rows > 0);
-    const form = useForm({ token: preview.token, include_duplicates: [] });
+    const form = useForm({ token: preview.token, include_duplicates: [], confirm_unusual: false });
     const hasErrors = preview.summary.error_rows > 0;
 
     const isIncluded = (row) => row.problems.length === 0 && (row.duplicate === null || included.has(row.row));
@@ -27,6 +27,7 @@ export default function UsageImportReview({ preview, onClose }) {
 
     const selectedRows = preview.rows.filter(isIncluded);
     const totalQty = selectedRows.reduce((sum, row) => sum + row.qty, 0);
+    const unusualSelected = selectedRows.filter((row) => row.unusual).length;
 
     const toolImpact = preview.tools.map((tool) => {
         const added = preview.rows
@@ -41,7 +42,9 @@ export default function UsageImportReview({ preview, onClose }) {
     });
 
     const overLimit = toolImpact.filter((tool) => tool.after.percent > 100).length;
-    const rows = onlyProblems ? preview.rows.filter((row) => row.problems.length > 0 || row.duplicate) : preview.rows;
+    const rows = onlyProblems
+        ? preview.rows.filter((row) => row.problems.length > 0 || row.duplicate || row.unusual)
+        : preview.rows;
     const applyErrors = Object.values(form.errors);
 
     const apply = () => {
@@ -63,7 +66,7 @@ export default function UsageImportReview({ preview, onClose }) {
                             onChange={(event) => setOnlyProblems(event.target.checked)}
                             className="size-4"
                         />
-                        Hanya baris bermasalah / duplikat
+                        Hanya baris bermasalah / duplikat / janggal
                     </label>
                 }
             />
@@ -96,8 +99,17 @@ export default function UsageImportReview({ preview, onClose }) {
                 <p className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
                     <TriangleAlert className="size-4 shrink-0" />
                     Baris kuning sama persis (Tools Name YES + tanggal + jumlah + PIC) dengan input yang sudah ada / baris
-                    lain di file, atau tanggalnya sudah tercakup pengecekan counter mesin. Tidak dimasukkan, kecuali
-                    Anda centang "Tetap masukkan".
+                    lain di file, atau tanggalnya sudah tercakup count mesin di laporan kerusakan Ganti Baru. Tidak
+                    dimasukkan, kecuali Anda centang "Tetap masukkan".
+                </p>
+            )}
+
+            {!hasErrors && (preview.summary.unusual_rows ?? 0) > 0 && (
+                <p className="flex items-center gap-2 border-b border-orange-200 bg-orange-50 px-4 py-2 text-xs text-orange-900">
+                    <TriangleAlert className="size-4 shrink-0" />
+                    {formatInt(preview.summary.unusual_rows)} baris berjumlah janggal (lebih dari 10% life time tool
+                    atau lebih dari 3× rata-rata hariannya) — kemungkinan salah ketik. Periksa baris oranye sebelum
+                    menerapkan.
                 </p>
             )}
 
@@ -131,6 +143,7 @@ export default function UsageImportReview({ preview, onClose }) {
                                     className={cn(
                                         row.problems.length > 0 && 'bg-red-50/40',
                                         row.problems.length === 0 && row.duplicate && 'bg-amber-50/60',
+                                        row.problems.length === 0 && !row.duplicate && row.unusual && 'bg-orange-50/60',
                                     )}
                                 >
                                     <td className="px-3 py-2 text-slate-500 tabular-nums">{row.row}</td>
@@ -191,6 +204,11 @@ export default function UsageImportReview({ preview, onClose }) {
                                             <span className="inline-flex items-center gap-1 font-semibold text-emerald-700">
                                                 <CircleCheck className="size-3.5" /> OK
                                             </span>
+                                        )}
+                                        {row.problems.length === 0 && row.unusual && (
+                                            <p className="mt-1 font-semibold text-orange-800">
+                                                Angka janggal: {row.unusual}
+                                            </p>
                                         )}
                                         {row.problems.length === 0 && !row.counts_toward_life && (
                                             <p className="mt-1 text-slate-500">
@@ -280,6 +298,17 @@ export default function UsageImportReview({ preview, onClose }) {
                         ))}
                     </ul>
                 )}
+                {!hasErrors && unusualSelected > 0 && (
+                    <label className="flex items-center gap-2 rounded-md bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-900 ring-1 ring-orange-300">
+                        <input
+                            type="checkbox"
+                            checked={form.data.confirm_unusual}
+                            onChange={(event) => form.setData('confirm_unusual', event.target.checked)}
+                            className="size-4"
+                        />
+                        Saya sudah cek {formatInt(unusualSelected)} baris berangka janggal
+                    </label>
+                )}
                 <Button variant="ghost" onClick={onClose}>
                     Batal
                 </Button>
@@ -287,7 +316,12 @@ export default function UsageImportReview({ preview, onClose }) {
                     variant="success"
                     onClick={apply}
                     loading={form.processing}
-                    disabled={hasErrors || !preview.token || selectedRows.length === 0}
+                    disabled={
+                        hasErrors ||
+                        !preview.token ||
+                        selectedRows.length === 0 ||
+                        (unusualSelected > 0 && !form.data.confirm_unusual)
+                    }
                 >
                     <Gauge className="size-4" /> Terapkan {formatInt(selectedRows.length)} Baris Pemakaian
                 </Button>

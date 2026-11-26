@@ -7,11 +7,16 @@ use App\Enums\UsageType;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
 /**
  * Satu baris = satu kali input pemakaian life time (tanggal bebas / acak).
- * Baris tidak pernah diedit atau dihapus; koreksi dilakukan dengan membatalkan (cancelled_at).
+ * Baris tidak pernah diedit atau dihapus. Koreksi = baris lama dibatalkan (cancelled_at) dan
+ * baris baru dibuat dengan `corrects_id` menunjuk baris lama, sehingga riwayat tetap utuh.
+ *
+ * PIC hanya boleh mengoreksi / membatalkan input Pemakaian miliknya sendiri dalam
+ * PIC_CHANGE_WINDOW_HOURS jam sejak input pertama; setelah itu hanya admin.
  *
  * @property int $id
  * @property int $tool_id
@@ -25,12 +30,17 @@ use Illuminate\Support\Carbon;
  * @property string|null $batch_no
  * @property UsageSource $source
  * @property int|null $damage_report_id
+ * @property int|null $user_id
+ * @property int|null $corrects_id
+ * @property Carbon|null $first_input_at
  * @property Carbon|null $cancelled_at
  * @property string|null $cancelled_by
  * @property string|null $cancel_reason
  */
 class ToolUsageLog extends Model
 {
+    public const PIC_CHANGE_WINDOW_HOURS = 24;
+
     protected $fillable = [
         'tool_id',
         'type',
@@ -43,6 +53,9 @@ class ToolUsageLog extends Model
         'batch_no',
         'source',
         'damage_report_id',
+        'user_id',
+        'corrects_id',
+        'first_input_at',
         'cancelled_at',
         'cancelled_by',
         'cancel_reason',
@@ -58,6 +71,7 @@ class ToolUsageLog extends Model
             'life_used_before' => 'integer',
             'life_used_after' => 'integer',
             'cancelled_at' => 'datetime',
+            'first_input_at' => 'datetime',
         ];
     }
 
@@ -71,9 +85,60 @@ class ToolUsageLog extends Model
         return $this->belongsTo(DamageReport::class);
     }
 
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /** Baris lama yang dikoreksi oleh baris ini. */
+    public function corrects(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'corrects_id');
+    }
+
+    /** Baris pengganti bila baris ini sudah dikoreksi. */
+    public function correctedBy(): HasOne
+    {
+        return $this->hasOne(self::class, 'corrects_id');
+    }
+
     public function isCancelled(): bool
     {
         return $this->cancelled_at !== null;
+    }
+
+    /** Dasar batas waktu PIC: input pertama dalam rantai koreksi (koreksi tidak memperpanjang batas). */
+    public function changeWindowEndsAt(): ?Carbon
+    {
+        $start = $this->first_input_at ?? $this->created_at;
+
+        return $start?->copy()->addHours(self::PIC_CHANGE_WINDOW_HOURS);
+    }
+
+    /**
+     * Boleh dikoreksi / dibatalkan oleh user ini?
+     * Admin: semua baris aktif. PIC: hanya Pemakaian (bukan Ganti Tool / koreksi count / import Excel)
+     * yang ia input sendiri, dalam 24 jam sejak input pertama.
+     */
+    public function canBeChangedBy(?User $user): bool
+    {
+        if ($user === null || $this->isCancelled()) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return $this->type === UsageType::Usage
+            && $this->batch_no === null
+            && $this->user_id === $user->id
+            && $this->changeWindowEndsAt()?->isFuture() === true;
+    }
+
+    public function isCorrectable(): bool
+    {
+        return $this->type === UsageType::Usage && ! $this->isCancelled();
     }
 
     public function scopeActive(Builder $query): void

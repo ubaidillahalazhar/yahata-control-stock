@@ -33,6 +33,17 @@ class ToolUsageLogResource extends JsonResource
             'cancelled_by' => $this->cancelled_by,
             'cancel_reason' => $this->cancel_reason,
             'created_at_display' => $this->created_at?->format('d/m/Y H:i'),
+            'corrects_id' => $this->corrects_id,
+            'corrects' => $this->whenLoaded('corrects', fn (): ?array => $this->corrects ? [
+                'id' => $this->corrects->id,
+                'usage_date_display' => $this->corrects->usage_date?->format('d/m/Y'),
+                'qty' => (int) $this->corrects->qty,
+            ] : null),
+            'is_corrected' => $this->isCancelled() && str_starts_with((string) $this->cancel_reason, 'Dikoreksi:'),
+            // Hak ubah untuk user yang sedang melihat (aturan 24 jam PIC ada di model).
+            'can_change' => $this->canBeChangedBy($request->user()),
+            'correctable' => $this->isCorrectable(),
+            'change_until_display' => $request->user()?->isAdmin() ? null : $this->changeWindowEndsAt()?->format('d/m/Y H:i'),
             'tool' => $this->whenLoaded('tool', fn (): ?array => $this->tool ? [
                 'id' => $this->tool->id,
                 'tools_name_yes' => $this->tool->tools_name_yes,

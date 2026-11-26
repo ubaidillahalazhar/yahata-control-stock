@@ -20,6 +20,8 @@ class ToolLifeTest extends TestCase
             'usage_date' => $date,
             'qty' => $qty,
             'pic_name' => 'Budi',
+            // Angka uji sengaja besar (> 10% life time) → konfirmasi angka janggal.
+            'confirm_unusual' => true,
         ]);
     }
 

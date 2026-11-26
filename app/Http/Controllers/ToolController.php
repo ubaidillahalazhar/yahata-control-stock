@@ -35,7 +35,7 @@ class ToolController extends Controller
     {
         $transactions = $tool->stockTransactions()->latest('id')->limit(50)->get();
         $damageReports = $tool->damageReports()->latest('id')->limit(20)->get();
-        $usageLogs = $tool->usageLogs()->orderByDesc('usage_date')->orderByDesc('id')->limit(30)->get();
+        $usageLogs = $tool->usageLogs()->with('corrects:id,usage_date,qty')->orderByDesc('usage_date')->orderByDesc('id')->limit(30)->get();
 
         return Inertia::render('Tools/Show', [
             'tool' => (new ToolingResource($tool))->resolve(),

@@ -179,12 +179,17 @@ class UsageImportTest extends TestCase
         ]);
 
         $this->assertNotNull($preview['token']);
-        $this->assertSame(['total_rows' => 3, 'valid_rows' => 3, 'error_rows' => 0, 'duplicate_rows' => 0, 'tools' => 2], $preview['summary']);
+        $this->assertSame(['total_rows' => 3, 'valid_rows' => 3, 'error_rows' => 0, 'duplicate_rows' => 0, 'unusual_rows' => 3, 'tools' => 2], $preview['summary']);
+        $this->assertStringContainsString('10% life time', $preview['rows'][0]['unusual']);
         $this->assertSame(['2026-11-12', '2026-11-19', '2026-11-05'], array_column($preview['rows'], 'usage_date'));
         $this->assertSame([120_000, 180_000, 300_000], array_column($preview['rows'], 'qty'));
         $this->assertSame(0, ToolUsageLog::query()->count(), 'Preview belum menulis data');
 
-        $this->post('/sync/usage-apply', ['token' => $preview['token']])->assertSessionHasNoErrors();
+        // Semua baris > 10% life time → wajib konfirmasi sekali sebelum diterapkan.
+        $this->post('/sync/usage-apply', ['token' => $preview['token']])->assertSessionHasErrors('confirm_unusual');
+        $this->assertSame(0, ToolUsageLog::query()->count());
+
+        $this->post('/sync/usage-apply', ['token' => $preview['token'], 'confirm_unusual' => true])->assertSessionHasNoErrors();
 
         $result = session('usage_result');
         $this->assertMatchesRegularExpression('/^PLT-20261124-100000$/', $result['batch_no']);
@@ -254,7 +259,7 @@ class UsageImportTest extends TestCase
         $this->assertStringContainsString('baris 4', $preview['rows'][3]['duplicate']['message']);
 
         // Duplikat tidak dimasukkan kecuali dicentang (baris Excel 5 = duplikat dalam file).
-        $this->post('/sync/usage-apply', ['token' => $preview['token'], 'include_duplicates' => [5]])->assertSessionHasNoErrors();
+        $this->post('/sync/usage-apply', ['token' => $preview['token'], 'include_duplicates' => [5], 'confirm_unusual' => true])->assertSessionHasNoErrors();
 
         $this->assertSame(1, session('usage_result')['skipped_duplicates']);
         $this->assertSame(3, ToolUsageLog::query()->whereNotNull('batch_no')->count());
@@ -283,7 +288,7 @@ class UsageImportTest extends TestCase
         $this->assertSame('2026-11-15', $preview['tools'][0]['last_reset_date']);
         $this->assertSame(0, $preview['tools'][0]['life_used_before']);
 
-        $this->post('/sync/usage-apply', ['token' => $preview['token']]);
+        $this->post('/sync/usage-apply', ['token' => $preview['token'], 'confirm_unusual' => true]);
         $batch = session('usage_result')['batch_no'];
 
         $this->assertSame(30_000, $this->chuck->fresh()->life_used, 'Hanya pemakaian setelah ganti tool');
