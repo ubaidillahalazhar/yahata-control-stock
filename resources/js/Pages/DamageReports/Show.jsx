@@ -1,6 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import { AlertTriangle, ArrowLeft, CheckCircle2, Plus, Printer } from 'lucide-react';
 import { useEffect } from 'react';
+import { ShotCountActions, ShotCountSummary } from '@/Components/DamageShotCount';
 import { Button } from '@/Components/ui';
 import AppLayout from '@/Layouts/AppLayout';
 import logoYahata from '@/assets/logo-yahata.jpeg';
@@ -76,6 +77,8 @@ export default function Show({ report, damageReport }) {
                     <ArrowLeft className="size-4" /> {isAdmin ? 'Dashboard' : 'Riwayat Saya'}
                 </Link>
             </div>
+
+            <ShotCountActions report={data} isAdmin={isAdmin} />
 
             {/* Area Dokumen Siap Cetak */}
             <div className="mx-auto max-w-3xl rounded-xl border border-slate-300 bg-white p-6 shadow-sm sm:p-8 print:max-w-none print:rounded-none print:border-slate-800 print:p-6 print:shadow-none">
@@ -179,6 +182,8 @@ export default function Show({ report, damageReport }) {
                         </tr>
                     </tbody>
                 </table>
+
+                <ShotCountSummary report={data} />
 
                 {/* Catatan Status Purchase Request (jika stok menyentuh batas minimum) */}
                 {isOrderAlert && (

@@ -20,6 +20,17 @@ class DamageReportResource extends JsonResource
             'shift' => $this->shift,
             'qty_replaced' => $this->qty_replaced,
             'actual_shot_count' => $this->actual_shot_count,
+            'system_shot_count' => $this->system_shot_count,
+            'life_time_snapshot' => $this->life_time_snapshot,
+            'shot_variance' => $this->shot_variance,
+            'count_pending' => $this->count_pending,
+            'count_overdue' => $this->isCountOverdue(),
+            'count_filled_at_display' => $this->count_filled_at?->format('d/m/Y H:i'),
+            'needs_review' => $this->needs_review,
+            'awaiting_review' => $this->isAwaitingReview(),
+            'reviewed_at_display' => $this->reviewed_at?->format('d/m/Y H:i'),
+            'reviewed_by' => $this->whenLoaded('reviewer', fn () => $this->reviewer?->name),
+            'review_note' => $this->review_note,
             'damage_reason' => $this->damage_reason->value,
             'damage_reason_label' => $this->damage_reason->label(),
             'action' => $this->action->value,
@@ -46,10 +57,21 @@ class DamageReportResource extends JsonResource
                 'life_time' => (int) $this->tool->life_time,
                 'current_stock' => (int) $this->tool->current_stock,
             ] : null),
-            'life_time_usage_pct' => $this->relationLoaded('tool') && $this->tool && $this->tool->life_time > 0
-                ? round($this->actual_shot_count / $this->tool->life_time * 100, 1)
-                : null,
+            'life_time_usage_pct' => $this->lifeTimeUsagePercent(),
             'stock_transaction_id' => $this->whenLoaded('stockTransaction', fn () => $this->stockTransaction?->id),
         ];
+    }
+
+    /** Pencapaian life = counter mesin / life time standar saat laporan dibuat (snapshot, fallback master). */
+    private function lifeTimeUsagePercent(): ?float
+    {
+        $lifeTime = $this->life_time_snapshot
+            ?? ($this->relationLoaded('tool') && $this->tool ? (int) $this->tool->life_time : null);
+
+        if ($this->actual_shot_count === null || ! $lifeTime) {
+            return null;
+        }
+
+        return round($this->actual_shot_count / $lifeTime * 100, 1);
     }
 }

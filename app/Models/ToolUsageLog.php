@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\UsageSource;
 use App\Enums\UsageType;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -22,6 +23,8 @@ use Illuminate\Support\Carbon;
  * @property string $pic_name
  * @property string|null $notes
  * @property string|null $batch_no
+ * @property UsageSource $source
+ * @property int|null $damage_report_id
  * @property Carbon|null $cancelled_at
  * @property string|null $cancelled_by
  * @property string|null $cancel_reason
@@ -38,6 +41,8 @@ class ToolUsageLog extends Model
         'pic_name',
         'notes',
         'batch_no',
+        'source',
+        'damage_report_id',
         'cancelled_at',
         'cancelled_by',
         'cancel_reason',
@@ -47,6 +52,7 @@ class ToolUsageLog extends Model
     {
         return [
             'type' => UsageType::class,
+            'source' => UsageSource::class,
             'usage_date' => 'date',
             'qty' => 'integer',
             'life_used_before' => 'integer',
@@ -58,6 +64,11 @@ class ToolUsageLog extends Model
     public function tool(): BelongsTo
     {
         return $this->belongsTo(ToolsInventory::class, 'tool_id');
+    }
+
+    public function damageReport(): BelongsTo
+    {
+        return $this->belongsTo(DamageReport::class);
     }
 
     public function isCancelled(): bool

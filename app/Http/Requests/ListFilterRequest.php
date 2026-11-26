@@ -34,6 +34,8 @@ class ListFilterRequest extends FormRequest
             'damage_reason' => ['nullable', Rule::enum(DamageReason::class)],
             'action' => ['nullable', Rule::enum(DamageAction::class)],
             'operator' => ['nullable', 'string', 'max:100'],
+            'count' => ['nullable', Rule::in(['pending', 'overdue'])],
+            'review' => ['nullable', Rule::in(['needed'])],
         ];
     }
 

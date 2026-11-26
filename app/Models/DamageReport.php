@@ -7,6 +7,7 @@ use App\Enums\DamageReason;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
@@ -20,7 +21,17 @@ use Illuminate\Support\Carbon;
  * @property string $operator_name
  * @property int $shift
  * @property int $qty_replaced
- * @property int $actual_shot_count
+ * @property int|null $actual_shot_count  angka counter mesin; null = count belum dibawa
+ * @property int|null $system_shot_count  snapshot life_used sistem saat laporan dibuat
+ * @property int|null $life_time_snapshot
+ * @property int|null $shot_variance  actual - system (negatif = Excel kelebihan input)
+ * @property bool $count_pending
+ * @property Carbon|null $count_filled_at
+ * @property Carbon|null $overdue_notified_at
+ * @property bool $needs_review
+ * @property int|null $reviewed_by
+ * @property Carbon|null $reviewed_at
+ * @property string|null $review_note
  * @property DamageReason $damage_reason
  * @property DamageAction $action
  * @property int $stock_before
@@ -30,6 +41,9 @@ use Illuminate\Support\Carbon;
  */
 class DamageReport extends Model
 {
+    /** Laporan "menunggu count" lebih lama dari ini → peringatan merah + notifikasi admin. */
+    public const COUNT_OVERDUE_HOURS = 24;
+
     protected $fillable = [
         'report_no',
         'tool_id',
@@ -38,6 +52,12 @@ class DamageReport extends Model
         'shift',
         'qty_replaced',
         'actual_shot_count',
+        'system_shot_count',
+        'life_time_snapshot',
+        'shot_variance',
+        'count_pending',
+        'count_filled_at',
+        'needs_review',
         'damage_reason',
         'action',
         'stock_before',
@@ -52,6 +72,14 @@ class DamageReport extends Model
             'shift' => 'integer',
             'qty_replaced' => 'integer',
             'actual_shot_count' => 'integer',
+            'system_shot_count' => 'integer',
+            'life_time_snapshot' => 'integer',
+            'shot_variance' => 'integer',
+            'count_pending' => 'boolean',
+            'count_filled_at' => 'datetime',
+            'overdue_notified_at' => 'datetime',
+            'needs_review' => 'boolean',
+            'reviewed_at' => 'datetime',
             'damage_reason' => DamageReason::class,
             'action' => DamageAction::class,
             'stock_before' => 'integer',
@@ -77,6 +105,28 @@ class DamageReport extends Model
         $query->when(! $user->isAdmin(), fn (Builder $q) => $q->where('user_id', $user->id));
     }
 
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    /** Koreksi count (ADJUST) & reset life yang dibuat otomatis oleh laporan ini. */
+    public function usageLogs(): HasMany
+    {
+        return $this->hasMany(ToolUsageLog::class);
+    }
+
+    /** Count belum diisi lebih dari batas waktu → peringatan merah + notifikasi admin. */
+    public function isCountOverdue(): bool
+    {
+        return $this->count_pending && $this->reported_at->lte(now()->subHours(self::COUNT_OVERDUE_HOURS));
+    }
+
+    public function isAwaitingReview(): bool
+    {
+        return $this->needs_review && $this->reviewed_at === null;
+    }
+
     public function stockTransaction(): HasOne
     {
         return $this->hasOne(StockTransaction::class);
@@ -95,6 +145,10 @@ class DamageReport extends Model
             ->when($filters['shift'] ?? null, fn (Builder $q, $shift) => $q->where('shift', (int) $shift))
             ->when($filters['damage_reason'] ?? null, fn (Builder $q, string $reason) => $q->where('damage_reason', $reason))
             ->when($filters['action'] ?? null, fn (Builder $q, string $action) => $q->where('action', $action))
+            ->when(($filters['count'] ?? null) === 'pending', fn (Builder $q) => $q->where('count_pending', true))
+            ->when(($filters['count'] ?? null) === 'overdue', fn (Builder $q) => $q->where('count_pending', true)
+                ->where('reported_at', '<=', now()->subHours(self::COUNT_OVERDUE_HOURS)))
+            ->when(($filters['review'] ?? null) === 'needed', fn (Builder $q) => $q->where('needs_review', true)->whereNull('reviewed_at'))
             ->when($filters['operator'] ?? null, fn (Builder $q, string $name) => $q->whereRaw('LOWER(operator_name) LIKE ?', [$like($name)]))
             ->when($filters['search'] ?? null, function (Builder $q, string $search) use ($like): void {
                 $q->where(function (Builder $inner) use ($search, $like): void {

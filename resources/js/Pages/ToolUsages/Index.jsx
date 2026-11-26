@@ -77,6 +77,7 @@ export default function Index({ tools, logs, filters, totals }) {
                             <option value="">Semua</option>
                             <option value="USAGE">Pemakaian</option>
                             <option value="RESET">Ganti Tool</option>
+                            <option value="ADJUST">Koreksi Count</option>
                         </Select>
                     </Field>
                     <Field label="Status">

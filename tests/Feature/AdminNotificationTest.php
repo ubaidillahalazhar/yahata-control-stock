@@ -123,7 +123,7 @@ class AdminNotificationTest extends TestCase
     {
         $this->actingAs($this->createPic())
             ->get('/notifications/feed')
-            ->assertRedirect('/damage-reports/create');
+            ->assertRedirect('/pic/dashboard');
     }
 
     private function makeAdmin(string $email, UserStatus $status = UserStatus::Active): User

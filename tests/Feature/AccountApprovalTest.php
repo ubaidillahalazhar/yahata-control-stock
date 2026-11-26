@@ -110,12 +110,12 @@ class AccountApprovalTest extends TestCase
     }
 
     #[Test]
-    public function approved_pic_logs_in_with_username_and_pin_and_lands_on_damage_form(): void
+    public function approved_pic_logs_in_with_username_and_pin_and_lands_on_pic_dashboard(): void
     {
         $pic = $this->createPic();
 
         $this->post('/login', ['login' => ' BUDI ', 'password' => '123456', 'remember' => true])
-            ->assertRedirect('/damage-reports/create');
+            ->assertRedirect('/pic/dashboard');
 
         $this->assertAuthenticatedAs($pic);
         $this->assertNull($pic->fresh()->remember_token, 'PIC di PC bersama tidak boleh "ingat saya"');
@@ -204,8 +204,8 @@ class AccountApprovalTest extends TestCase
 
         $this->actingAs($this->createPic())
             ->post("/accounts/{$pending->id}/status", ['status' => 'active'])
-            ->assertRedirect('/damage-reports/create');
-        $this->delete("/accounts/{$this->admin->id}")->assertRedirect('/damage-reports/create');
+            ->assertRedirect('/pic/dashboard');
+        $this->delete("/accounts/{$this->admin->id}")->assertRedirect('/pic/dashboard');
 
         $this->assertSame(UserStatus::Pending, $pending->fresh()->status);
         $this->assertDatabaseHas('users', ['id' => $this->admin->id]);
@@ -229,7 +229,7 @@ class AccountApprovalTest extends TestCase
         $this->get('/damage-reports/create')->assertRedirect('/account/pin');
 
         $this->put('/account/pin', ['current' => $temporary, 'pin' => '654321', 'pin_confirmation' => '654321'])
-            ->assertRedirect('/damage-reports/create');
+            ->assertRedirect('/pic/dashboard');
 
         $pic->refresh();
         $this->assertFalse($pic->must_change_password);
@@ -257,7 +257,6 @@ class AccountApprovalTest extends TestCase
         return [
             'dashboard' => ['/'],
             'transaksi' => ['/transactions/create'],
-            'pemakaian' => ['/tool-usages'],
             'audit log' => ['/audit-log'],
             'label QR' => ['/qr-labels'],
             'sync excel' => ['/sync'],
@@ -271,7 +270,7 @@ class AccountApprovalTest extends TestCase
     {
         $this->actingAs($this->createPic())
             ->get($url)
-            ->assertRedirect('/damage-reports/create');
+            ->assertRedirect('/pic/dashboard');
     }
 
     #[Test]

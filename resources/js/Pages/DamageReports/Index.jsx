@@ -5,7 +5,7 @@ import Pagination from '@/Components/Pagination';
 import { Button, Card, EmptyState, Field, Input, Select, cn } from '@/Components/ui';
 import AppLayout from '@/Layouts/AppLayout';
 import PicLayout from '@/Layouts/PicLayout';
-import { daysAgo, formatInt } from '@/lib/format';
+import { daysAgo, formatInt, formatSigned } from '@/lib/format';
 import { buildUrl, cleanParams } from '@/lib/urls';
 
 const EMPTY_FILTERS = {
@@ -16,9 +16,11 @@ const EMPTY_FILTERS = {
     action: '',
     operator: '',
     search: '',
+    count: '',
+    review: '',
 };
 
-export default function Index({ reports, summary, filters, reasons, actions }) {
+export default function Index({ reports, summary, filters, reasons, actions, attention = {} }) {
     const isAdmin = Boolean(usePage().props.auth?.user?.is_admin);
     const [form, setForm] = useState({ ...EMPTY_FILTERS, ...filters });
     const set = (key) => (event) => setForm((prev) => ({ ...prev, [key]: event.target.value }));
@@ -63,6 +65,16 @@ export default function Index({ reports, summary, filters, reasons, actions }) {
                     );
                 })}
             </section>
+
+            <AttentionFilters
+                attention={attention}
+                active={form}
+                onPick={(patch) => {
+                    const next = { ...form, count: '', review: '', ...patch };
+                    setForm(next);
+                    apply(next);
+                }}
+            />
 
             <Card>
                 <form
@@ -217,11 +229,39 @@ export default function Index({ reports, summary, filters, reasons, actions }) {
                                             {formatInt(report.qty_replaced)}
                                         </td>
                                         <td className="px-3 py-2 text-right tabular-nums">
-                                            {formatInt(report.actual_shot_count)}
+                                            {report.count_pending ? (
+                                                <Link
+                                                    href={`/damage-reports/${report.id}`}
+                                                    className={cn(
+                                                        'inline-flex rounded px-1.5 py-0.5 text-[11px] font-bold whitespace-nowrap ring-1 ring-inset',
+                                                        report.count_overdue
+                                                            ? 'bg-red-50 text-red-700 ring-red-600/30'
+                                                            : 'bg-amber-50 text-amber-800 ring-amber-600/30',
+                                                    )}
+                                                    title="Klik untuk mengisi angka counter"
+                                                >
+                                                    {report.count_overdue ? 'Count > 24 jam' : 'Menunggu count'}
+                                                </Link>
+                                            ) : (
+                                                formatInt(report.actual_shot_count)
+                                            )}
                                             {report.life_time_usage_pct !== null && (
                                                 <p className="text-[11px] text-slate-500">
                                                     {report.life_time_usage_pct}% LT
                                                 </p>
+                                            )}
+                                            {report.shot_variance !== null && report.shot_variance !== 0 && (
+                                                <p
+                                                    className={cn(
+                                                        'text-[11px]',
+                                                        report.shot_variance < 0 ? 'text-amber-700' : 'text-slate-500',
+                                                    )}
+                                                >
+                                                    {formatSigned(report.shot_variance)} vs sistem
+                                                </p>
+                                            )}
+                                            {report.awaiting_review && (
+                                                <p className="mt-0.5 text-[11px] font-bold text-amber-700">Perlu ditinjau</p>
                                             )}
                                         </td>
                                         <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums">
@@ -283,5 +323,67 @@ export default function Index({ reports, summary, filters, reasons, actions }) {
             </div>
             {content}
         </PicLayout>
+    );
+}
+
+/** Filter cepat untuk laporan yang butuh tindakan (count tertunda / selisih negatif). */
+function AttentionFilters({ attention, active, onPick }) {
+    const chips = [
+        { key: 'all', label: 'Semua laporan', patch: {}, isActive: !active.count && !active.review },
+        {
+            key: 'pending',
+            label: 'Menunggu count',
+            count: attention.count_pending,
+            patch: { count: 'pending' },
+            isActive: active.count === 'pending',
+            tone: 'amber',
+        },
+        {
+            key: 'overdue',
+            label: 'Count > 24 jam',
+            count: attention.count_overdue,
+            patch: { count: 'overdue' },
+            isActive: active.count === 'overdue',
+            tone: 'red',
+        },
+        {
+            key: 'review',
+            label: 'Perlu ditinjau',
+            count: attention.needs_review,
+            patch: { review: 'needed' },
+            isActive: active.review === 'needed',
+            tone: 'amber',
+        },
+    ];
+
+    return (
+        <div className="mb-4 flex flex-wrap gap-2">
+            {chips.map((chip) => (
+                <button
+                    key={chip.key}
+                    type="button"
+                    onClick={() => onPick(chip.patch)}
+                    aria-pressed={chip.isActive}
+                    className={cn(
+                        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition',
+                        chip.isActive
+                            ? 'border-slate-900 bg-slate-900 text-white'
+                            : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50',
+                    )}
+                >
+                    {chip.label}
+                    {chip.count > 0 && (
+                        <span
+                            className={cn(
+                                'rounded-full px-1.5 text-[10px] font-extrabold',
+                                chip.tone === 'red' ? 'bg-red-600 text-white' : 'bg-amber-400 text-slate-950',
+                            )}
+                        >
+                            {chip.count}
+                        </span>
+                    )}
+                </button>
+            ))}
+        </div>
     );
 }

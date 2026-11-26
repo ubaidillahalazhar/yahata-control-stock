@@ -42,6 +42,9 @@ Route::middleware(['auth', 'account.usable'])->group(function () {
     Route::get('/damage-reports/{damageReport}', [DamageReportController::class, 'show'])
         ->whereNumber('damageReport')
         ->name('damage-reports.show');
+    Route::post('/damage-reports/{damageReport}/count', [DamageReportController::class, 'fillCount'])
+        ->whereNumber('damageReport')
+        ->name('damage-reports.count');
 
     // Pemakaian Life Time (Day) — dapat diakses oleh PIC & Admin
     Route::get('/tool-usages', [ToolUsageController::class, 'index'])->name('tool-usages.index');
@@ -55,6 +58,11 @@ Route::middleware(['auth', 'account.usable'])->group(function () {
 
     // 3. Khusus Admin
     Route::middleware('admin')->group(function () {
+        // Tinjau selisih negatif count laporan kerusakan vs sistem (data tidak diubah otomatis)
+        Route::post('/damage-reports/{damageReport}/review', [DamageReportController::class, 'review'])
+            ->whereNumber('damageReport')
+            ->name('damage-reports.review');
+
         // Module 1 — Live Stock Control Dashboard
         Route::get('/', DashboardController::class)->name('dashboard');
         Route::get('/tools/{tool}', [ToolController::class, 'show'])
