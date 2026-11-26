@@ -130,7 +130,7 @@ class ShotCountTest extends TestCase
         $pic = $this->createPic();
         $this->actingAs($pic)->post('/damage-reports', $this->report(['actual_shot_count' => 2_500]));
 
-        $this->post("/damage-reports/{$this->latestReport()->id}/review")->assertRedirect('/damage-reports/create');
+        $this->post("/damage-reports/{$this->latestReport()->id}/review")->assertRedirect('/pic/dashboard');
         $this->assertTrue($this->latestReport()->isAwaitingReview());
     }
 

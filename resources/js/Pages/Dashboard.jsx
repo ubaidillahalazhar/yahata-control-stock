@@ -388,7 +388,7 @@ export default function Dashboard({ tools, racks, forecastMonths, lastUpdatedAt,
                     />
                 ) : (
                     <div className="max-h-[68vh] overflow-auto border-t border-slate-200">
-                        <table className="w-full min-w-[1280px] border-collapse text-sm">
+                        <table className="w-full min-w-7xl border-collapse text-sm">
                             <thead className="sticky top-0 z-10 bg-slate-800 text-white">
                                 <tr>
                                     {COLUMNS.map((column) => (

@@ -75,10 +75,10 @@ class User extends Authenticatable
         return $this->status === UserStatus::Active;
     }
 
-    /** Halaman awal setelah login: admin → dashboard, PIC → form kerusakan. */
+    /** Halaman awal setelah login: admin → dashboard, PIC → portal menu 2x2 PIC. */
     public function homeUrl(): string
     {
-        return $this->isAdmin() ? route('dashboard') : route('damage-reports.create');
+        return $this->isAdmin() ? route('dashboard') : route('pic.dashboard');
     }
 
     /** Sebutan kredensial di UI & pesan: PIC memakai PIN, admin memakai password. */

@@ -1,4 +1,4 @@
-import { router } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import { Ban, FileSpreadsheet, Filter, Gauge, History, X } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import Modal from '@/Components/Modal';
@@ -8,6 +8,7 @@ import UsageForm, { CancelBatchForm, CancelUsageForm } from '@/Components/UsageF
 import UsageLogTable from '@/Components/UsageLogTable';
 import { Button, Card, CardHeader, EmptyState, Field, Input, Select } from '@/Components/ui';
 import AppLayout from '@/Layouts/AppLayout';
+import PicLayout from '@/Layouts/PicLayout';
 import { formatInt } from '@/lib/format';
 import { LIFE_TONES } from '@/lib/life';
 import { cleanParams } from '@/lib/urls';
@@ -15,6 +16,7 @@ import { cleanParams } from '@/lib/urls';
 const EMPTY_FILTERS = { tool_id: '', batch: '', month: '', type: '', state: '' };
 
 export default function Index({ tools, logs, filters, totals }) {
+    const isAdmin = Boolean(usePage().props.auth?.user?.is_admin);
     const [form, setForm] = useState({ ...EMPTY_FILTERS, ...filters });
     const [cancelling, setCancelling] = useState(null);
     const closeCancel = useCallback(() => setCancelling(null), []);
@@ -31,16 +33,8 @@ export default function Index({ tools, logs, filters, totals }) {
     const change = (key) => (value) => apply({ ...form, [key]: value });
     const hasFilter = Object.values(form).some((value) => value !== '' && value !== null);
 
-    return (
-        <AppLayout
-            title="Pemakaian Life Time (Day)"
-            subtitle="Riwayat lengkap seluruh input pemakaian & ganti tool · salah input → batalkan, lalu input ulang"
-            actions={
-                <Button size="sm" onClick={() => setInputOpen(true)}>
-                    <Gauge className="size-4" /> Input Pemakaian
-                </Button>
-            }
-        >
+    const content = (
+        <>
             <Card className="min-w-0">
                 <CardHeader
                     icon={History}
@@ -157,6 +151,41 @@ export default function Index({ tools, logs, filters, totals }) {
             >
                 {cancelling && <CancelUsageForm key={cancelling.id} log={cancelling} onSuccess={closeCancel} />}
             </Modal>
-        </AppLayout>
+        </>
+    );
+
+    if (isAdmin) {
+        return (
+            <AppLayout
+                title="Pemakaian Life Time (Day)"
+                subtitle="Riwayat lengkap seluruh input pemakaian & ganti tool · salah input → batalkan, lalu input ulang"
+                actions={
+                    <Button size="sm" onClick={() => setInputOpen(true)}>
+                        <Gauge className="size-4" /> Input Pemakaian
+                    </Button>
+                }
+            >
+                {content}
+            </AppLayout>
+        );
+    }
+
+    return (
+        <PicLayout showMenuButton>
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h1 className="text-lg font-extrabold tracking-tight text-slate-900 sm:text-xl">
+                        Count Lifetime — Pemakaian Life Time (Day)
+                    </h1>
+                    <p className="text-xs text-slate-500 sm:text-sm">
+                        Catat &amp; pantau pemakaian harian tooling · salah input dapat dibatalkan lalu diinput ulang
+                    </p>
+                </div>
+                <Button size="sm" onClick={() => setInputOpen(true)}>
+                    <Gauge className="size-4" /> Input Pemakaian
+                </Button>
+            </div>
+            {content}
+        </PicLayout>
     );
 }
