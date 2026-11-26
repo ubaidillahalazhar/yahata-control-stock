@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Pagination from '@/Components/Pagination';
 import { Button, Card, EmptyState, Field, Input, Select, cn } from '@/Components/ui';
 import AppLayout from '@/Layouts/AppLayout';
+import PicLayout from '@/Layouts/PicLayout';
 import { daysAgo, formatInt } from '@/lib/format';
 import { buildUrl, cleanParams } from '@/lib/urls';
 
@@ -44,20 +45,8 @@ export default function Index({ reports, summary, filters, reasons, actions }) {
 
     const totalReports = Object.values(summary).reduce((sum, item) => sum + item.reports, 0);
 
-    return (
-        <AppLayout
-            title={isAdmin ? 'Riwayat Laporan Kerusakan' : 'Riwayat Laporan Saya'}
-            subtitle={
-                isAdmin
-                    ? 'Seluruh laporan kerusakan & penggantian part dari form QR'
-                    : 'Laporan kerusakan & penggantian part yang Anda buat'
-            }
-            actions={
-                <Button as={Link} href="/damage-reports/create" size="sm">
-                    <ScanLine className="size-4" /> Form Kerusakan
-                </Button>
-            }
-        >
+    const content = (
+        <>
             <section className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
                 {reasons.map((reason) => {
                     const item = summary[reason.value] ?? { reports: 0, qty: 0 };
@@ -154,7 +143,7 @@ export default function Index({ reports, summary, filters, reasons, actions }) {
                     />
                 ) : (
                     <div className="overflow-x-auto">
-                        <table className="w-full min-w-[1100px] text-sm">
+                        <table className="w-full min-w-275 text-sm">
                             <thead className="bg-slate-800 text-[11px] font-bold tracking-wide text-white uppercase">
                                 <tr>
                                     <th className="px-3 py-2.5 text-left">No. Laporan</th>
@@ -258,6 +247,41 @@ export default function Index({ reports, summary, filters, reasons, actions }) {
 
                 <Pagination meta={reports.meta} links={reports.links} />
             </Card>
-        </AppLayout>
+        </>
+    );
+
+    if (isAdmin) {
+        return (
+            <AppLayout
+                title="Riwayat Laporan Kerusakan"
+                subtitle="Seluruh laporan kerusakan & penggantian part dari form QR"
+                actions={
+                    <Button as={Link} href="/damage-reports/create" size="sm">
+                        <ScanLine className="size-4" /> Form Kerusakan
+                    </Button>
+                }
+            >
+                {content}
+            </AppLayout>
+        );
+    }
+
+    return (
+        <PicLayout showMenuButton>
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h1 className="text-lg font-extrabold tracking-tight text-slate-900 sm:text-xl">
+                        Riwayat Laporan Saya
+                    </h1>
+                    <p className="text-xs text-slate-500 sm:text-sm">
+                        Laporan kerusakan &amp; penggantian part yang Anda buat
+                    </p>
+                </div>
+                <Button as={Link} href="/damage-reports/create" size="sm">
+                    <ScanLine className="size-4" /> Form Kerusakan
+                </Button>
+            </div>
+            {content}
+        </PicLayout>
     );
 }
