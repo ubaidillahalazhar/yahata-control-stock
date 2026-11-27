@@ -2,9 +2,10 @@
 
 namespace App\Services;
 
+use App\Enums\UsageSource;
 use App\Enums\UsageType;
 use App\Http\Requests\StoreToolUsageRequest;
-use App\Imports\UsageImport;
+use App\Imports\MachineResultImport;
 use App\Models\ToolsInventory;
 use App\Models\ToolUsageLog;
 use Carbon\CarbonImmutable;
@@ -17,19 +18,22 @@ use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use Throwable;
 
 /**
- * Import "Pemakaian Life Time (Day)" dari Excel — Upload → Review → Terapkan.
+ * Import Pemakaian Life Time (Day) dari export "Machine Result" — Upload → Review → Terapkan.
  *
- *  1. preview(): baca & validasi semua baris, deteksi duplikat, simulasi life (TANPA menulis DB).
- *     Hasil baris valid disimpan di cache dengan token; client hanya mengirim token saat apply.
- *  2. apply():   all-or-nothing — bila ada 1 baris salah, tidak ada yang masuk. Semua baris
- *     masuk dalam satu transaksi dengan nomor batch (PLT-...) agar bisa dibatalkan sekaligus.
- *
- * Tool dicocokkan HANYA dengan "Tools Name YES" (bukan Tools Name), tanpa membedakan huruf
- * besar/kecil & spasi berlebih. Duplikat = Tools Name YES + tanggal + jumlah + PIC sama.
+ *  - Hanya baris End yang dihitung (baris Start selalu 0 pcs).
+ *  - 1 baris End → SEMUA tool di master dengan Machine Name + Part No. sama bertambah Result Q'ty.
+ *    Machine Name dicocokkan tanpa peduli urutan & tanda baca ("CBP-136 (BF-01)" = "BF-01 CBP-136").
+ *  - Mesin / part yang tidak ada di master dilewati (ditampilkan saat review), bukan error.
+ *  - PIC = Operator dari baris Start pasangannya (Machine Name + J/O No. + Lot No.); cadangan Input User.
+ *  - Periode (bulan) dipilih saat upload; hanya baris End bertanggal di bulan itu yang diambil.
+ *  - Upload ulang periode yang sama MENGGANTIKAN import sebelumnya (dibatalkan, bukan dihapus).
+ *  - Baris salah untuk mesin yang ada di master → tidak ada yang dimasukkan (all-or-nothing).
+ *  - Tool + tanggal ≤ counter laporan kerusakan Ganti Baru ditahan, kecuali dicentang saat review.
  */
 final class UsageImportService
 {
-    public const MAX_ROWS = 5000;
+    /** Batas baris data file (Start + End). */
+    public const MAX_ROWS = 20000;
 
     private const CACHE_PREFIX = 'usage-import:';
 
@@ -37,166 +41,236 @@ final class UsageImportService
 
     private const PIC_MAX = 100;
 
-    private const NOTES_MAX = 1000;
+    /** Baris judul dicari di N baris pertama. */
+    private const HEADER_SCAN_ROWS = 20;
 
-    /** Heading wajib (sudah di-slug oleh WithHeadingRow). */
-    private const REQUIRED_HEADINGS = ['tools_name_yes', 'tanggal_pemakaian', 'jumlah_terpakai_pcs', 'nama_pic'];
+    /** Kolom yang dibaca (judul dinormalisasi: huruf kecil, tanpa spasi / tanda baca). */
+    private const COLUMNS = [
+        'machine_group' => 'machinegroup',
+        'machine_name' => 'machinename',
+        'input_date' => 'inputdate',
+        'start_end' => 'startend',
+        'input_user' => 'inputuser',
+        'operator' => 'operator',
+        'jo_no' => 'jono',
+        'lot_no' => 'lotno',
+        'part_no' => 'partno',
+        'shift' => 'shift',
+        'qty' => 'resultqtypcs',
+    ];
+
+    private const REQUIRED = ['machine_name', 'input_date', 'start_end', 'operator', 'part_no', 'qty'];
+
+    private const REQUIRED_LABELS = "Machine Name, Input Date, Start/End, Operator, Part No., Result Q'ty (Pcs)";
 
     public function __construct(private readonly ToolLifeService $life) {}
 
     /**
+     * @param  string  $period  Y-m
      * @return array<string, mixed>
      */
-    public function preview(UploadedFile|string $file): array
+    public function preview(UploadedFile|string $file, string $period): array
     {
-        $import = new UsageImport;
+        $import = new MachineResultImport;
         Excel::import($import, $file);
 
-        $rows = $import->rows;
-        $headings = array_keys(($rows->first() ?? collect())->toArray());
-
-        // Toleransi heading "Jumlah Terpakai" tanpa "(pcs)".
-        if (in_array('jumlah_terpakai', $headings, true)) {
-            $headings[] = 'jumlah_terpakai_pcs';
-        }
-
-        $missing = array_diff(self::REQUIRED_HEADINGS, $headings);
-
-        if ($rows->isEmpty() || $missing !== []) {
-            throw ValidationException::withMessages([
-                'usage_file' => 'Format tidak sesuai. Gunakan file dari tombol "Download Template Pemakaian" '
-                    .'(kolom wajib: Tools Name YES, Tanggal Pemakaian, Jumlah Terpakai (pcs), Nama PIC).',
-            ]);
-        }
-
-        $tools = ToolsInventory::query()->get(['id', 'tools_name_yes', 'tools_name', 'machine_name', 'rack_location', 'life_time', 'life_used']);
-        $byName = $tools->keyBy(fn (ToolsInventory $tool): string => self::nameKey($tool->tools_name_yes));
+        [$headerIndex, $columns] = self::findHeader($import->rows);
+        $periodStart = CarbonImmutable::createFromFormat('!Y-m', $period)->startOfMonth();
+        $periodLabel = $periodStart->locale('id')->translatedFormat('F Y');
         $today = CarbonImmutable::today();
 
-        $parsed = [];
-        $seen = [];
+        $tools = ToolsInventory::query()->get(['id', 'tools_name_yes', 'tools_name', 'machine_name', 'part_no', 'life_time', 'life_used']);
+        $toolsByKey = $tools->groupBy(fn (ToolsInventory $tool): string => self::machineKey($tool->machine_name).'|'.self::partKey($tool->part_no));
+        $masterMachines = $tools->map(fn (ToolsInventory $tool): string => self::machineKey($tool->machine_name))->unique()->flip();
 
-        foreach ($rows as $index => $row) {
-            $cells = [
-                'tools_name_yes' => self::text($row->get('tools_name_yes')),
-                'usage_date' => $row->get('tanggal_pemakaian'),
-                'qty' => $row->get('jumlah_terpakai_pcs') ?? $row->get('jumlah_terpakai'),
-                'pic_name' => self::text($row->get('nama_pic')),
-                'notes' => self::text($row->get('catatan')),
-            ];
+        // Pass 1: baris data + Operator dari baris Start (di export, Operator hanya terisi di baris Start).
+        $records = [];
+        $operators = [];
 
-            if ($cells['tools_name_yes'] === null && self::text($cells['usage_date']) === null
-                && self::text($cells['qty']) === null && $cells['pic_name'] === null && $cells['notes'] === null) {
+        foreach (array_slice($import->rows, $headerIndex + 1, null, true) as $index => $raw) {
+            $cells = array_map(fn (int $col): mixed => $raw[$col] ?? null, $columns);
+
+            if (array_filter($cells, fn (mixed $value): bool => self::text($value) !== null) === []) {
                 continue; // baris kosong
             }
 
-            if (count($parsed) >= self::MAX_ROWS) {
+            if (count($records) >= self::MAX_ROWS) {
                 throw ValidationException::withMessages([
-                    'usage_file' => 'Maksimal '.number_format(self::MAX_ROWS, 0, ',', '.').' baris per file. Pecah file menjadi beberapa bagian.',
+                    'usage_file' => 'Maksimal '.number_format(self::MAX_ROWS, 0, ',', '.').' baris per file.',
                 ]);
             }
 
-            $problems = [];
-            $tool = null;
+            $record = ['row' => $index + 1, 'cells' => $cells, 'kind' => mb_strtolower((string) self::text($cells['start_end']))];
+            $records[] = $record;
+            $operator = self::text($cells['operator']);
 
-            if ($cells['tools_name_yes'] === null) {
-                $problems[] = self::problem('tools_name_yes', 'Tools Name YES', 'kosong');
-            } elseif (($tool = $byName->get(self::nameKey($cells['tools_name_yes']))) === null) {
-                $problems[] = self::problem('tools_name_yes', 'Tools Name YES', 'tidak terdaftar di master (cek sheet "Daftar Tool")');
+            if ($record['kind'] === 'start' && $operator !== null) {
+                $operators[self::jobKey($cells)] = $operator;
+            }
+        }
+
+        // Pass 2: baris End.
+        $parsed = [];
+        $skipped = [];
+        $seenJobs = [];
+        $outsidePeriod = 0;
+        $zeroRows = 0;
+
+        foreach ($records as $record) {
+            if ($record['kind'] !== 'end') {
+                continue;
             }
 
-            [$date, $dateReason] = self::date($cells['usage_date']);
+            $cells = $record['cells'];
+            $machine = self::text($cells['machine_name']);
+            $partNo = self::text($cells['part_no']);
+            $matched = $toolsByKey->get(self::machineKey($machine).'|'.self::partKey($partNo));
+            [$at, $dateReason] = self::dateTime($cells['input_date']);
 
-            if ($dateReason !== null) {
-                $problems[] = self::problem('usage_date', 'Tanggal Pemakaian', $dateReason);
-            } elseif ($date->greaterThan($today)) {
-                $problems[] = self::problem('usage_date', 'Tanggal Pemakaian', 'tidak boleh tanggal yang akan datang');
+            if ($matched === null) {
+                // Di luar master: dilewati. Hitung hanya baris di periode ini (atau tanggal tak terbaca).
+                if ($at === null || $at->format('Y-m') === $period) {
+                    $key = mb_strtoupper(($machine ?? '(kosong)').' | '.($partNo ?? '(kosong)'));
+                    $skipped[$key] ??= [
+                        'machine_name' => $machine ?? '(kosong)',
+                        'part_no' => $partNo ?? '(kosong)',
+                        'reason' => $masterMachines->has(self::machineKey($machine))
+                            ? 'Part No. tidak ada di master untuk mesin ini'
+                            : 'Mesin tidak ada di master',
+                        'end_rows' => 0,
+                        'qty' => 0,
+                    ];
+                    $skipped[$key]['end_rows']++;
+                    $skipped[$key]['qty'] += self::quantity($cells['qty'])[0] ?? 0;
+                }
+
+                continue;
+            }
+
+            if ($at !== null && $at->format('Y-m') !== $period) {
+                $outsidePeriod++;
+
+                continue;
             }
 
             [$qty, $qtyReason] = self::quantity($cells['qty']);
 
+            if ($qtyReason === null && $qty === 0) {
+                $zeroRows++;
+
+                continue;
+            }
+
+            $pic = self::text($cells['operator']) ?? $operators[self::jobKey($cells)] ?? self::text($cells['input_user']);
+            $problems = [];
+
+            if ($dateReason !== null) {
+                $problems[] = self::problem('input_date', 'Input Date', $dateReason);
+            } elseif ($at->startOfDay()->greaterThan($today)) {
+                $problems[] = self::problem('input_date', 'Input Date', 'tidak boleh tanggal yang akan datang');
+            }
+
             if ($qtyReason !== null) {
-                $problems[] = self::problem('qty', 'Jumlah Terpakai', $qtyReason);
+                $problems[] = self::problem('qty', "Result Q'ty (Pcs)", $qtyReason);
             }
 
-            if ($cells['pic_name'] === null) {
-                $problems[] = self::problem('pic_name', 'Nama PIC', 'kosong');
-            } elseif (mb_strlen($cells['pic_name']) > self::PIC_MAX) {
-                $problems[] = self::problem('pic_name', 'Nama PIC', 'maksimal '.self::PIC_MAX.' karakter');
+            if ($pic === null) {
+                $problems[] = self::problem('pic_name', 'Operator', 'kosong (baris Start pasangannya & Input User juga kosong)');
+            } elseif (mb_strlen($pic) > self::PIC_MAX) {
+                $problems[] = self::problem('pic_name', 'Operator', 'maksimal '.self::PIC_MAX.' karakter');
             }
 
-            if ($cells['notes'] !== null && mb_strlen($cells['notes']) > self::NOTES_MAX) {
-                $problems[] = self::problem('notes', 'Catatan', 'maksimal '.self::NOTES_MAX.' karakter');
-            }
-
-            $record = [
-                'row' => $index + 2, // baris 1 = heading
-                'input_name' => $cells['tools_name_yes'],
-                'tool_id' => $tool?->id,
-                'tools_name_yes' => $tool?->tools_name_yes,
-                'tools_name' => $tool?->tools_name,
-                'machine_name' => $tool?->machine_name,
-                'usage_date' => $date?->toDateString(),
-                'usage_date_display' => $date?->format('d/m/Y') ?? self::text($cells['usage_date']),
+            $row = [
+                'row' => $record['row'],
+                'machine_name' => $machine,
+                'part_no' => $partNo,
+                'jo_no' => self::text($cells['jo_no']),
+                'lot_no' => self::text($cells['lot_no']),
+                'shift' => self::text($cells['shift']),
+                'usage_date' => $at?->toDateString(),
+                'usage_date_display' => $at?->format('d/m/Y H:i') ?? self::text($cells['input_date']),
                 'qty' => $qty,
                 'qty_display' => $qty === null ? self::text($cells['qty']) : null,
-                'pic_name' => $cells['pic_name'],
-                'notes' => $cells['notes'],
+                'pic_name' => $pic,
+                'tool_ids' => $matched->pluck('id')->all(),
                 'problems' => $problems,
                 'duplicate' => null,
-                'unusual' => null,
-                'counts_toward_life' => true,
+                'held_tools' => [],
             ];
 
-            if ($problems === []) {
-                $key = self::duplicateKey($tool->id, $record['usage_date'], $qty, $cells['pic_name']);
+            if ($problems === [] && $row['jo_no'] !== null) {
+                $jobKey = self::jobKey($cells);
 
-                if (isset($seen[$key])) {
-                    $record['duplicate'] = ['kind' => 'file', 'message' => "Sama persis dengan baris {$seen[$key]} di file ini"];
+                if (isset($seenJobs[$jobKey])) {
+                    $row['duplicate'] = "J/O No. + Lot No. sama dengan baris End {$seenJobs[$jobKey]} di file ini";
                 } else {
-                    $seen[$key] = $record['row'];
+                    $seenJobs[$jobKey] = $row['row'];
                 }
             }
 
-            $parsed[] = $record;
+            $parsed[] = $row;
         }
 
         if ($parsed === []) {
-            throw ValidationException::withMessages(['usage_file' => 'Tidak ada baris pemakaian yang terisi pada file.']);
+            throw ValidationException::withMessages([
+                'usage_file' => $records === []
+                    ? 'Tidak ada baris data pada file.'
+                    : "Tidak ada baris End untuk mesin di master pada periode {$periodLabel}. Cek periode yang dipilih.",
+            ]);
         }
 
-        $parsed = $this->markUnusual($this->markCounterOverlaps($this->markExistingDuplicates($parsed)), $tools);
+        $parsed = self::markCounterOverlaps($parsed);
         $valid = array_values(array_filter($parsed, fn (array $row): bool => $row['problems'] === []));
+        $errorRows = count($parsed) - count($valid);
 
-        // Simulasi life per tool (pemakaian sebelum Ganti Tool terakhir tidak menambah life tool sekarang).
+        // Simulasi life per tool: semua baris valid kecuali yang ditahan (default preview).
         $byTool = [];
 
         foreach ($valid as $row) {
-            $byTool[$row['tool_id']][] = ['usage_date' => $row['usage_date'], 'qty' => $row['qty']];
+            foreach ($row['tool_ids'] as $toolId) {
+                $byTool[$toolId] ??= [];
+
+                if ($row['duplicate'] === null && ! isset($row['held_tools'][$toolId])) {
+                    $byTool[$toolId][] = ['usage_date' => $row['usage_date'], 'qty' => $row['qty']];
+                }
+            }
         }
 
-        $projection = ToolLifeService::projectLife($byTool);
+        $projection = $byTool === [] ? [] : $this->life->projectPeriod($byTool, $period);
+        $toolsById = $tools->keyBy('id');
 
         foreach ($parsed as &$row) {
-            $resetDate = $row['tool_id'] !== null ? ($projection[$row['tool_id']]['last_reset_date'] ?? null) : null;
-            $row['counts_toward_life'] = $resetDate === null || ($row['usage_date'] !== null && $row['usage_date'] >= $resetDate);
+            $row['tools_count'] = count($row['tool_ids']);
+            $row['counts_toward_life'] = $row['usage_date'] !== null && array_reduce(
+                $row['tool_ids'],
+                fn (bool $carry, int $toolId): bool => $carry || ($projection[$toolId]['last_reset_date'] ?? null) === null
+                    || $row['usage_date'] >= $projection[$toolId]['last_reset_date'],
+                false,
+            );
         }
         unset($row);
 
-        $errorRows = count($parsed) - count($valid);
+        $previous = self::previousImport($period);
         $token = (string) Str::uuid();
         $fileName = $file instanceof UploadedFile ? $file->getClientOriginalName() : basename($file);
 
         if ($errorRows === 0) {
-            Cache::put(self::CACHE_PREFIX.$token, ['file_name' => $fileName, 'rows' => $valid], now()->addHours(self::CACHE_TTL_HOURS));
+            Cache::put(self::CACHE_PREFIX.$token, [
+                'file_name' => $fileName,
+                'period' => $period,
+                'rows' => $valid,
+            ], now()->addHours(self::CACHE_TTL_HOURS));
         }
-
-        $toolsById = $tools->keyBy('id');
 
         return [
             'token' => $errorRows === 0 ? $token : null,
             'file_name' => $fileName,
+            'period' => $period,
+            'period_label' => $periodLabel,
             'rows' => $parsed,
+            'skipped' => array_values($skipped),
+            'previous' => $previous,
+            'other_inputs' => self::otherInputs($period, array_keys($byTool)),
             'tools' => array_values(array_map(fn (int $toolId): array => [
                 'tool_id' => $toolId,
                 'tools_name_yes' => $toolsById[$toolId]->tools_name_yes,
@@ -204,26 +278,29 @@ final class UsageImportService
                 'machine_name' => $toolsById[$toolId]->machine_name,
                 'life_time' => (int) $toolsById[$toolId]->life_time,
                 'life_used_before' => $projection[$toolId]['life_used_before'],
+                'life_used_after' => $projection[$toolId]['life_used_after'],
                 'last_reset_date' => $projection[$toolId]['last_reset_date'],
             ], array_keys($byTool))),
             'summary' => [
-                'total_rows' => count($parsed),
+                'end_rows' => count($parsed),
                 'valid_rows' => count($valid),
                 'error_rows' => $errorRows,
-                'duplicate_rows' => count(array_filter($valid, fn (array $row): bool => $row['duplicate'] !== null)),
-                'unusual_rows' => count(array_filter($valid, fn (array $row): bool => $row['unusual'] !== null)),
+                'held_rows' => count(array_filter($valid, fn (array $row): bool => $row['duplicate'] !== null || $row['held_tools'] !== [])),
+                'skipped_rows' => array_sum(array_column($skipped, 'end_rows')),
+                'outside_period_rows' => $outsidePeriod,
+                'zero_rows' => $zeroRows,
                 'tools' => count($byTool),
             ],
         ];
     }
 
     /**
-     * @param  list<int>  $includeDuplicateRows  nomor baris Excel duplikat yang tetap dimasukkan
-     * @return array{batch_no: string, inserted: int, tools: int, total_qty: int, skipped_duplicates: int, file_name: string}
+     * @param  list<int>  $includeRows  nomor baris Excel yang ditahan tetapi tetap dimasukkan
+     * @return array{batch_no: string, period: string, inserted: int, tools: int, total_qty: int, replaced: int, replaced_batches: list<string>, skipped_held: int, file_name: string}
      */
-    public function apply(string $token, array $includeDuplicateRows = [], bool $confirmUnusual = false): array
+    public function apply(string $token, array $includeRows, string $appliedBy): array
     {
-        $lock = Cache::lock(self::CACHE_PREFIX.'lock:'.$token, 60);
+        $lock = Cache::lock(self::CACHE_PREFIX.'lock:'.$token, 120);
 
         if (! $lock->get()) {
             throw ValidationException::withMessages(['usage_import' => 'Import ini sedang diproses. Tunggu sebentar.']);
@@ -238,47 +315,60 @@ final class UsageImportService
                 ]);
             }
 
-            $include = array_flip(array_map('intval', $includeDuplicateRows));
+            $include = array_flip(array_map('intval', $includeRows));
 
-            // Cek ulang duplikat terhadap data terbaru (mungkin ada input lain sejak preview dibuat).
-            $flaggedAtPreview = array_flip(array_column(
-                array_filter($cached['rows'], fn (array $row): bool => $row['duplicate'] !== null),
-                'row',
-            ));
-            $rows = $this->markCounterOverlaps($this->markExistingDuplicates($cached['rows']));
-            $newlyDuplicated = array_filter(
-                $rows,
-                fn (array $row): bool => $row['duplicate'] !== null && ! isset($flaggedAtPreview[$row['row']]),
-            );
-            $selected = array_values(array_filter(
-                $rows,
-                fn (array $row): bool => $row['duplicate'] === null || isset($include[$row['row']]),
-            ));
+            // Cek ulang laporan Ganti Baru terbaru (mungkin ada laporan baru sejak preview dibuat).
+            $flaggedAtPreview = array_map(fn (array $row): array => array_keys($row['held_tools']), $cached['rows']);
+            $rows = self::markCounterOverlaps(array_map(fn (array $row): array => [...$row, 'held_tools' => []], $cached['rows']));
 
-            if ($newlyDuplicated !== []) {
-                throw ValidationException::withMessages([
-                    'usage_import' => 'Sejak preview dibuat, ada input baru yang sama dengan '.count($newlyDuplicated).' baris file ini. Upload ulang file untuk review ulang.',
-                ]);
+            foreach ($rows as $i => $row) {
+                if (array_diff(array_keys($row['held_tools']), $flaggedAtPreview[$i]) !== [] && ! isset($include[$row['row']])) {
+                    throw ValidationException::withMessages([
+                        'usage_import' => 'Sejak preview dibuat, ada laporan kerusakan Ganti Baru baru untuk tool di file ini. Upload ulang file untuk review ulang.',
+                    ]);
+                }
             }
 
-            if ($selected === []) {
+            $entries = [];
+            $skippedHeld = 0;
+
+            foreach ($rows as $row) {
+                $included = isset($include[$row['row']]);
+
+                if ($row['duplicate'] !== null && ! $included) {
+                    $skippedHeld += count($row['tool_ids']);
+
+                    continue;
+                }
+
+                foreach ($row['tool_ids'] as $toolId) {
+                    if (isset($row['held_tools'][$toolId]) && ! $included) {
+                        $skippedHeld++;
+
+                        continue;
+                    }
+
+                    $entries[] = [
+                        'tool_id' => $toolId,
+                        'usage_date' => $row['usage_date'],
+                        'qty' => $row['qty'],
+                        'pic_name' => $row['pic_name'],
+                        'notes' => self::notes($row),
+                    ];
+                }
+            }
+
+            if ($entries === []) {
                 throw ValidationException::withMessages(['usage_import' => 'Tidak ada baris yang dipilih untuk dimasukkan.']);
             }
 
-            $unusual = count(array_filter($selected, fn (array $row): bool => ($row['unusual'] ?? null) !== null));
-
-            if ($unusual > 0 && ! $confirmUnusual) {
-                throw ValidationException::withMessages([
-                    'confirm_unusual' => "{$unusual} baris berjumlah janggal. Periksa baris bertanda oranye, lalu centang konfirmasi sebelum menerapkan.",
-                ]);
-            }
-
-            $result = $this->life->importUsages($selected, $this->batchNo());
+            $result = $this->life->importPeriod($entries, $this->batchNo(), $cached['period'], $appliedBy);
             Cache::forget(self::CACHE_PREFIX.$token);
 
             return [
                 ...$result,
-                'skipped_duplicates' => count($rows) - count($selected),
+                'period' => $cached['period'],
+                'skipped_held' => $skippedHeld,
                 'file_name' => $cached['file_name'],
             ];
         } finally {
@@ -287,84 +377,39 @@ final class UsageImportService
     }
 
     /**
-     * Tandai baris yang sama persis dengan input aktif yang sudah ada di database.
+     * Tahan tool + tanggal ≤ pengecekan counter terakhir (laporan kerusakan Ganti Baru):
+     * pemakaian sampai tanggal itu sudah tercakup angka counter → kemungkinan terhitung dobel.
      *
      * @param  list<array<string, mixed>>  $rows
      * @return list<array<string, mixed>>
      */
-    private function markExistingDuplicates(array $rows): array
+    private static function markCounterOverlaps(array $rows): array
     {
-        $valid = array_filter($rows, fn (array $row): bool => $row['problems'] === [] && $row['duplicate'] === null);
+        $toolIds = [];
 
-        if ($valid === []) {
-            return $rows;
-        }
-
-        $dates = array_column($valid, 'usage_date');
-        $existing = [];
-
-        ToolUsageLog::query()->active()
-            ->where('type', UsageType::Usage->value)
-            ->whereIn('tool_id', array_unique(array_column($valid, 'tool_id')))
-            // Batas atas eksklusif: kolom date bisa tersimpan sebagai "Y-m-d 00:00:00".
-            ->where('usage_date', '>=', min($dates))
-            ->where('usage_date', '<', CarbonImmutable::parse(max($dates))->addDay()->toDateString())
-            ->select(['id', 'tool_id', 'usage_date', 'qty', 'pic_name', 'batch_no', 'created_at'])
-            ->lazyById(1000)
-            ->each(function (ToolUsageLog $log) use (&$existing): void {
-                $existing[self::duplicateKey($log->tool_id, $log->usage_date->toDateString(), $log->qty, $log->pic_name)] ??= $log;
-            });
-
-        foreach ($rows as &$row) {
-            if ($row['problems'] !== [] || $row['duplicate'] !== null) {
-                continue;
-            }
-
-            $log = $existing[self::duplicateKey($row['tool_id'], $row['usage_date'], $row['qty'], $row['pic_name'])] ?? null;
-
-            if ($log !== null) {
-                $source = $log->batch_no ? "import {$log->batch_no}" : 'input aplikasi';
-                $row['duplicate'] = [
-                    'kind' => 'existing',
-                    'message' => 'Sudah pernah diinput ('.$source.', '.$log->created_at?->format('d/m/Y H:i').')',
-                ];
+        foreach ($rows as $row) {
+            if ($row['problems'] === []) {
+                array_push($toolIds, ...$row['tool_ids']);
             }
         }
-        unset($row);
 
-        return $rows;
-    }
-
-    /**
-     * Tahan baris yang tanggalnya ≤ pengecekan counter mesin terakhir tool tersebut
-     * (laporan kerusakan Ganti Baru): pemakaian sampai tanggal itu sudah
-     * tercakup angka counter, jadi kemungkinan terhitung dobel. Sama seperti duplikat:
-     * tidak dimasukkan kecuali admin mencentang "Tetap masukkan".
-     *
-     * @param  list<array<string, mixed>>  $rows
-     * @return list<array<string, mixed>>
-     */
-    private function markCounterOverlaps(array $rows): array
-    {
-        $candidates = array_filter($rows, fn (array $row): bool => $row['problems'] === [] && $row['duplicate'] === null);
-        $checkpoints = ShotCountService::latestCheckpoints(array_values(array_unique(array_column($candidates, 'tool_id'))));
+        $checkpoints = ShotCountService::latestCheckpoints(array_values(array_unique($toolIds)));
 
         if ($checkpoints === []) {
             return $rows;
         }
 
         foreach ($rows as &$row) {
-            $checkpoint = $row['problems'] === [] && $row['duplicate'] === null ? ($checkpoints[$row['tool_id']] ?? null) : null;
+            if ($row['problems'] !== []) {
+                continue;
+            }
 
-            if ($checkpoint !== null && $row['usage_date'] <= $checkpoint['date']) {
-                $row['duplicate'] = [
-                    'kind' => 'counter',
-                    'message' => sprintf(
-                        'Counter mesin tool ini sudah dicatat %s (%s) — pemakaian sampai tanggal itu sudah tercakup',
-                        CarbonImmutable::parse($checkpoint['date'])->format('d/m/Y'),
-                        $checkpoint['source'],
-                    ),
-                ];
+            foreach ($row['tool_ids'] as $toolId) {
+                $checkpoint = $checkpoints[$toolId] ?? null;
+
+                if ($checkpoint !== null && $row['usage_date'] <= $checkpoint['date']) {
+                    $row['held_tools'][$toolId] = CarbonImmutable::parse($checkpoint['date'])->format('d/m/Y');
+                }
             }
         }
         unset($row);
@@ -373,31 +418,150 @@ final class UsageImportService
     }
 
     /**
-     * Tandai baris valid yang jumlahnya janggal (> 10% life time / > 3× rata-rata harian).
-     * Hanya peringatan: baris tetap masuk, tetapi admin wajib konfirmasi sekali sebelum Terapkan.
+     * Import Machine Result aktif untuk periode ini (akan digantikan bila diterapkan).
      *
-     * @param  list<array<string, mixed>>  $rows
-     * @param  \Illuminate\Support\Collection<int, ToolsInventory>  $tools
-     * @return list<array<string, mixed>>
+     * @return array{rows: int, total_qty: int, batches: list<string>}|null
      */
-    private function markUnusual(array $rows, $tools): array
+    private static function previousImport(string $period): ?array
     {
-        $lifeTimes = $tools->pluck('life_time', 'id');
-        $toolIds = array_values(array_unique(array_filter(array_column($rows, 'tool_id'))));
-        $baselines = UsageAnomalyService::dailyBaselines($toolIds);
+        $query = ToolUsageLog::query()->active()
+            ->where('source', UsageSource::MachineResult->value)
+            ->where('import_period', $period);
 
-        foreach ($rows as &$row) {
-            if ($row['problems'] === []) {
-                $row['unusual'] = UsageAnomalyService::reason(
-                    (int) $row['qty'],
-                    (int) $lifeTimes->get($row['tool_id']),
-                    $baselines[$row['tool_id']] ?? null,
-                );
-            }
+        $rows = (clone $query)->count();
+
+        if ($rows === 0) {
+            return null;
         }
-        unset($row);
 
-        return $rows;
+        return [
+            'rows' => $rows,
+            'total_qty' => (int) (clone $query)->sum('qty'),
+            'batches' => (clone $query)->distinct()->orderBy('batch_no')->pluck('batch_no')->filter()->values()->all(),
+        ];
+    }
+
+    /**
+     * Input pemakaian lain (manual / template lama) di periode ini untuk tool di file — tidak ikut diganti.
+     *
+     * @param  list<int>  $toolIds
+     * @return array{rows: int, tools: int, total_qty: int}|null
+     */
+    private static function otherInputs(string $period, array $toolIds): ?array
+    {
+        if ($toolIds === []) {
+            return null;
+        }
+
+        $from = CarbonImmutable::createFromFormat('!Y-m', $period)->startOfMonth();
+        $query = ToolUsageLog::query()->active()
+            ->where('type', UsageType::Usage->value)
+            ->where('source', '<>', UsageSource::MachineResult->value)
+            ->whereIn('tool_id', $toolIds)
+            // Batas atas eksklusif: kolom date bisa tersimpan sebagai "Y-m-d 00:00:00".
+            ->where('usage_date', '>=', $from->toDateString())
+            ->where('usage_date', '<', $from->addMonth()->toDateString());
+
+        $rows = (clone $query)->count();
+
+        return $rows === 0 ? null : [
+            'rows' => $rows,
+            'tools' => (clone $query)->distinct()->count('tool_id'),
+            'total_qty' => (int) (clone $query)->sum('qty'),
+        ];
+    }
+
+    /**
+     * Cari baris judul (posisinya bisa bergeser) & indeks kolom yang dibaca.
+     *
+     * @param  list<list<mixed>>  $rows
+     * @return array{0: int, 1: array<string, int>}
+     */
+    private static function findHeader(array $rows): array
+    {
+        foreach (array_slice($rows, 0, self::HEADER_SCAN_ROWS, true) as $index => $row) {
+            $headings = [];
+
+            foreach ($row as $col => $value) {
+                $key = self::headingKey($value);
+
+                if ($key !== '' && ! isset($headings[$key])) {
+                    $headings[$key] = $col;
+                }
+            }
+
+            if (! isset($headings['machinename'], $headings['resultqtypcs'])) {
+                continue;
+            }
+
+            $columns = [];
+
+            foreach (self::COLUMNS as $field => $heading) {
+                if (isset($headings[$heading])) {
+                    $columns[$field] = $headings[$heading];
+                }
+            }
+
+            $missing = array_diff(self::REQUIRED, array_keys($columns));
+
+            if ($missing !== []) {
+                break;
+            }
+
+            // Kolom opsional yang tidak ada → selalu null.
+            foreach (array_keys(self::COLUMNS) as $field) {
+                $columns[$field] ??= PHP_INT_MAX;
+            }
+
+            return [$index, $columns];
+        }
+
+        throw ValidationException::withMessages([
+            'usage_file' => 'Format tidak sesuai. Upload export "Machine Result" apa adanya (kolom wajib: '.self::REQUIRED_LABELS.').',
+        ]);
+    }
+
+    private static function headingKey(mixed $value): string
+    {
+        return preg_replace('/[^a-z0-9]/', '', mb_strtolower((string) $value));
+    }
+
+    /**
+     * Machine Name tanpa peduli urutan & tanda baca: "CBP-136 (BF-01)" = "BF-01 CBP-136".
+     */
+    public static function machineKey(?string $name): string
+    {
+        $tokens = preg_split('/[^A-Z0-9]+/', mb_strtoupper((string) $name), -1, PREG_SPLIT_NO_EMPTY);
+        sort($tokens);
+
+        return implode(' ', $tokens);
+    }
+
+    private static function partKey(?string $partNo): string
+    {
+        return preg_replace('/\s+/u', '', mb_strtoupper(trim((string) $partNo)));
+    }
+
+    /** Pasangan Start ↔ End: Machine Name + J/O No. + Lot No. */
+    private static function jobKey(array $cells): string
+    {
+        return implode('|', [
+            self::machineKey(self::text($cells['machine_name'])),
+            mb_strtoupper((string) self::text($cells['jo_no'])),
+            mb_strtoupper((string) self::text($cells['lot_no'])),
+        ]);
+    }
+
+    private static function notes(array $row): string
+    {
+        return implode(' · ', array_filter([
+            'Machine Result',
+            $row['machine_name'],
+            $row['usage_date_display'],
+            $row['jo_no'] ? 'J/O '.$row['jo_no'] : null,
+            $row['lot_no'] ? 'Lot '.$row['lot_no'] : null,
+            $row['shift'],
+        ]));
     }
 
     private function batchNo(): string
@@ -413,27 +577,21 @@ final class UsageImportService
         return $batchNo;
     }
 
-    /** Kunci duplikat: tool (dari Tools Name YES) + tanggal + jumlah + PIC (tanpa beda huruf besar/kecil). */
-    private static function duplicateKey(int $toolId, string $date, int $qty, string $picName): string
-    {
-        return implode('|', [$toolId, $date, $qty, mb_strtolower(preg_replace('/\s+/u', ' ', trim($picName)))]);
-    }
-
-    private static function nameKey(string $name): string
-    {
-        return mb_strtolower(preg_replace('/\s+/u', ' ', trim($name)));
-    }
-
     /**
+     * Input Date: "02/11/2026 01:00" (teks dd/mm/yyyy) atau sel tanggal Excel (angka serial).
+     *
      * @return array{0: ?CarbonImmutable, 1: ?string}
      */
-    private static function date(mixed $value): array
+    private static function dateTime(mixed $value): array
     {
+        if ($value instanceof \DateTimeInterface) {
+            return [CarbonImmutable::instance($value), null];
+        }
+
         if ($value === null || (is_string($value) && trim($value) === '')) {
             return [null, 'kosong'];
         }
 
-        // Sel tanggal Excel → angka serial.
         if (is_int($value) || is_float($value) || (is_string($value) && is_numeric(trim($value)))) {
             $serial = (float) $value;
 
@@ -442,16 +600,15 @@ final class UsageImportService
             }
 
             try {
-                return [CarbonImmutable::instance(ExcelDate::excelToDateTimeObject($serial))->startOfDay(), null];
+                return [CarbonImmutable::instance(ExcelDate::excelToDateTimeObject($serial)), null];
             } catch (Throwable) {
                 return [null, 'bukan tanggal'];
             }
         }
 
-        $text = trim((string) $value);
+        $text = preg_replace('/\s+/', ' ', trim((string) $value));
 
-        // Format teks yang diterima. "j/n/Y" = tanpa nol di depan (mis. 5/1/2026).
-        foreach (['d/m/Y', 'j/n/Y', 'd-m-Y', 'j-n-Y', 'd.m.Y', 'j.n.Y', 'Y-m-d', 'd/m/y'] as $format) {
+        foreach (['d/m/Y H:i', 'd/m/Y H:i:s', 'd/m/Y', 'j/n/Y G:i', 'j/n/Y H:i', 'j/n/Y', 'Y-m-d H:i:s', 'Y-m-d H:i', 'Y-m-d', 'd-m-Y H:i', 'd-m-Y'] as $format) {
             try {
                 $date = CarbonImmutable::createFromFormat('!'.$format, $text);
             } catch (Throwable) {
@@ -464,11 +621,11 @@ final class UsageImportService
             }
         }
 
-        return [null, 'format tidak dikenali (gunakan dd/mm/yyyy)'];
+        return [null, 'format tidak dikenali (gunakan dd/mm/yyyy jam:menit)'];
     }
 
     /**
-     * Bilangan bulat > 0. Teks "120.000" / "120,000" dibaca sebagai 120000 (pemisah ribuan).
+     * Bilangan bulat ≥ 0. Teks "22.400" / "22,400" dibaca sebagai 22400 (pemisah ribuan).
      *
      * @return array{0: ?int, 1: ?string}
      */
@@ -498,8 +655,8 @@ final class UsageImportService
             return [null, 'harus bilangan bulat'];
         }
 
-        if ($number <= 0) {
-            return [null, 'harus lebih dari 0'];
+        if ($number < 0) {
+            return [null, 'tidak boleh minus'];
         }
 
         if ($number > StoreToolUsageRequest::MAX_QTY) {

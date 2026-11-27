@@ -2,43 +2,37 @@
 
 namespace App\Http\Controllers;
 
-use App\Exports\UsageTemplateExport;
 use App\Http\Requests\ApplyUsageImportRequest;
 use App\Http\Requests\UploadUsageImportRequest;
 use App\Services\UsageImportService;
 use Illuminate\Http\RedirectResponse;
 use Maatwebsite\Excel\Exceptions\NoTypeDetectedException;
-use Maatwebsite\Excel\Facades\Excel;
 use PhpOffice\PhpSpreadsheet\Exception as SpreadsheetException;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
- * Import Pemakaian Life Time (Day) dari Excel: template → upload & review → terapkan.
+ * Import Pemakaian Life Time (Day) dari export Machine Result: upload (+ periode) → review → terapkan.
  */
 class UsageImportController extends Controller
 {
     public function __construct(private readonly UsageImportService $import) {}
-
-    public function template(): BinaryFileResponse
-    {
-        return Excel::download(new UsageTemplateExport, 'template_pemakaian_life_time.xlsx');
-    }
 
     /**
      * Baca & validasi file (belum menulis data pemakaian).
      */
     public function preview(UploadUsageImportRequest $request): RedirectResponse
     {
+        ini_set('memory_limit', '512M');
+
         try {
-            $preview = $this->import->preview($request->file('usage_file'));
+            $preview = $this->import->preview($request->file('usage_file'), $request->validated('period'));
         } catch (SpreadsheetException|NoTypeDetectedException $exception) {
             return back()->with('error', 'File Excel tidak dapat dibaca: '.$exception->getMessage());
         }
 
         $summary = $preview['summary'];
         $message = $summary['error_rows'] > 0
-            ? sprintf('%d dari %d baris bermasalah. Tidak ada yang dimasukkan — perbaiki file lalu upload ulang.', $summary['error_rows'], $summary['total_rows'])
-            : sprintf('Preview siap: %d baris, %d tool. Periksa lalu klik "Terapkan".', $summary['valid_rows'], $summary['tools']);
+            ? sprintf('%d dari %d baris End bermasalah. Tidak ada yang dimasukkan — perbaiki file lalu upload ulang.', $summary['error_rows'], $summary['end_rows'])
+            : sprintf('Preview %s siap: %d baris End, %d tool. Periksa lalu klik "Terapkan".', $preview['period_label'], $summary['valid_rows'], $summary['tools']);
 
         return back()
             ->with($summary['error_rows'] > 0 ? 'error' : 'success', $message)
@@ -46,24 +40,25 @@ class UsageImportController extends Controller
     }
 
     /**
-     * Masukkan semua baris valid dalam satu transaksi (nomor batch PLT-...).
+     * Masukkan semua baris dalam satu transaksi (batch PLT-...), menggantikan import periode yang sama.
      */
     public function apply(ApplyUsageImportRequest $request): RedirectResponse
     {
         $result = $this->import->apply(
             token: $request->validated('token'),
-            includeDuplicateRows: $request->validated('include_duplicates') ?? [],
-            confirmUnusual: $request->boolean('confirm_unusual'),
+            includeRows: $request->validated('include_rows') ?? [],
+            appliedBy: (string) $request->user()?->name,
         );
 
         return back()
             ->with('success', sprintf(
-                'Import pemakaian %s diterapkan: %d baris, %d tool, total %s pcs%s.',
+                'Import Machine Result %s (%s) diterapkan: %d baris pemakaian, %d tool, total %s pcs%s.',
                 $result['batch_no'],
+                $result['period'],
                 $result['inserted'],
                 $result['tools'],
                 number_format($result['total_qty'], 0, ',', '.'),
-                $result['skipped_duplicates'] > 0 ? sprintf(' (%d baris duplikat tidak dimasukkan)', $result['skipped_duplicates']) : '',
+                $result['replaced'] > 0 ? sprintf(' · %d baris import lama periode ini dibatalkan', $result['replaced']) : '',
             ))
             ->with('usage_result', $result);
     }

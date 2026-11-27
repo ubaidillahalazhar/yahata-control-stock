@@ -51,6 +51,7 @@ class ToolUsageLog extends Model
         'pic_name',
         'notes',
         'batch_no',
+        'import_period',
         'source',
         'damage_report_id',
         'user_id',

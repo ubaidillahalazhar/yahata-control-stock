@@ -18,9 +18,8 @@ class ApplyUsageImportRequest extends FormRequest
     {
         return [
             'token' => ['required', 'uuid'],
-            'include_duplicates' => ['nullable', 'array'],
-            'include_duplicates.*' => ['integer', 'min:2'],
-            'confirm_unusual' => ['nullable', 'boolean'],
+            'include_rows' => ['nullable', 'array'],
+            'include_rows.*' => ['integer', 'min:2'],
         ];
     }
 
@@ -28,7 +27,7 @@ class ApplyUsageImportRequest extends FormRequest
     {
         return [
             'token' => 'Preview import',
-            'include_duplicates' => 'Baris duplikat',
+            'include_rows' => 'Baris ditahan',
         ];
     }
 }
