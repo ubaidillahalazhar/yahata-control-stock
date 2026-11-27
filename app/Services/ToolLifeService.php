@@ -101,45 +101,140 @@ final class ToolLifeService
     }
 
     /**
-     * Import pemakaian dari Excel: SEMUA baris masuk atau tidak sama sekali (satu transaksi).
+     * Import Machine Result satu periode (bulan) — satu transaksi, semua atau tidak sama sekali.
+     *
+     * Import Machine Result sebelumnya untuk periode yang sama DIBATALKAN dulu (bukan dihapus),
+     * lalu baris baru dimasukkan, sehingga upload ulang tidak pernah terhitung dobel.
      * Tool dikunci berurutan berdasarkan ID agar tidak deadlock dengan input lain.
      *
-     * @param  list<array{tool_id: int, usage_date: string, qty: int, pic_name: string, notes: ?string}>  $rows
-     * @return array{batch_no: string, inserted: int, tools: int, total_qty: int}
+     * @param  list<array{tool_id: int, usage_date: string, qty: int, pic_name: string, notes: ?string}>  $entries
+     * @return array{batch_no: string, inserted: int, tools: int, total_qty: int, replaced: int, replaced_batches: list<string>}
      */
-    public function importUsages(array $rows, string $batchNo): array
+    public function importPeriod(array $entries, string $batchNo, string $period, string $cancelledBy): array
     {
-        return DB::transaction(function () use ($rows, $batchNo): array {
-            $toolIds = array_values(array_unique(array_map(fn (array $row): int => (int) $row['tool_id'], $rows)));
+        return DB::transaction(function () use ($entries, $batchNo, $period, $cancelledBy): array {
+            $previous = fn () => ToolUsageLog::query()->active()
+                ->where('source', UsageSource::MachineResult->value)
+                ->where('import_period', $period);
+
+            $newToolIds = array_values(array_unique(array_map(fn (array $row): int => (int) $row['tool_id'], $entries)));
+            $toolIds = array_values(array_unique([...$newToolIds, ...$previous()->distinct()->pluck('tool_id')->all()]));
             sort($toolIds);
 
-            $found = ToolsInventory::query()->whereIn('id', $toolIds)->orderBy('id')->lockForUpdate()->pluck('id')->all();
+            $tools = ToolsInventory::query()->whereIn('id', $toolIds)->orderBy('id')->lockForUpdate()->get()->keyBy('id');
 
-            if (count($found) !== count($toolIds)) {
+            if (array_diff($newToolIds, $tools->keys()->all()) !== []) {
                 throw ValidationException::withMessages([
                     'usage_import' => 'Sebagian tool sudah tidak ada di master sejak preview dibuat. Upload ulang file.',
                 ]);
             }
 
-            foreach ($rows as $row) {
-                $this->recordUsage(
-                    toolId: (int) $row['tool_id'],
-                    usageDate: $row['usage_date'],
-                    qty: (int) $row['qty'],
-                    picName: $row['pic_name'],
-                    notes: $row['notes'] ?? null,
-                    batchNo: $batchNo,
-                    source: UsageSource::Excel,
-                );
+            $replacedBatches = $previous()->distinct()->orderBy('batch_no')->pluck('batch_no')->filter()->values()->all();
+            $replaced = $previous()->update([
+                'cancelled_at' => now(),
+                'cancelled_by' => self::clean($cancelledBy),
+                'cancel_reason' => "Diganti import {$batchNo} (periode {$period})",
+                'updated_at' => now(),
+            ]);
+
+            $byTool = [];
+
+            foreach ($entries as $entry) {
+                $byTool[(int) $entry['tool_id']][] = $entry;
+            }
+
+            $now = now();
+            $userId = auth()->id();
+            $insert = [];
+            // Format tanggal sama persis dengan simpanan Eloquent (recalculate() membandingkan nilai mentah).
+            $model = new ToolUsageLog;
+
+            foreach ($byTool as $toolId => $rows) {
+                // life_used_before/after per baris = simulasi berurutan tanggal (snapshot, bukan sumber kebenaran).
+                usort($rows, fn (array $a, array $b): int => strcmp($a['usage_date'], $b['usage_date']));
+                $running = $this->recalculate($tools[$toolId]);
+                $resetDate = $this->lastResetDate($toolId);
+
+                foreach ($rows as $row) {
+                    $before = $running;
+
+                    if ($resetDate === null || $row['usage_date'] >= $resetDate) {
+                        $running += (int) $row['qty'];
+                    }
+
+                    $insert[] = [
+                        'tool_id' => $toolId,
+                        'type' => UsageType::Usage->value,
+                        'source' => UsageSource::MachineResult->value,
+                        'usage_date' => $model->fromDateTime(Carbon::parse($row['usage_date'])->startOfDay()),
+                        'qty' => (int) $row['qty'],
+                        'life_used_before' => $before,
+                        'life_used_after' => $running,
+                        'pic_name' => self::clean($row['pic_name']),
+                        'notes' => self::clean($row['notes'] ?? null),
+                        'batch_no' => $batchNo,
+                        'import_period' => $period,
+                        'user_id' => $userId,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
+            }
+
+            foreach (array_chunk($insert, 500) as $chunk) {
+                ToolUsageLog::query()->insert($chunk);
+            }
+
+            foreach ($tools as $tool) {
+                $tool->forceFill(['life_used' => $this->recalculate($tool)])->save();
             }
 
             return [
                 'batch_no' => $batchNo,
-                'inserted' => count($rows),
-                'tools' => count($toolIds),
-                'total_qty' => array_sum(array_map(fn (array $row): int => (int) $row['qty'], $rows)),
+                'inserted' => count($insert),
+                'tools' => count($byTool),
+                'total_qty' => array_sum(array_column($insert, 'qty')),
+                'replaced' => $replaced,
+                'replaced_batches' => $replacedBatches,
             ];
         }, StockMutationService::TRANSACTION_ATTEMPTS);
+    }
+
+    /**
+     * Simulasi import satu periode Machine Result (preview, tidak menulis DB).
+     * Life "sebelum" = kondisi sekarang; "setelah" = tanpa import periode ini yang lama + baris baru.
+     *
+     * @param  array<int, list<array{usage_date: string, qty: int}>>  $newRowsByTool  keyed by tool_id
+     * @return array<int, array{life_used_before: int, life_used_after: int, last_reset_date: ?string}>
+     */
+    public function projectPeriod(array $newRowsByTool, string $period): array
+    {
+        $result = [];
+
+        foreach (ToolsInventory::query()->whereIn('id', array_keys($newRowsByTool))->get() as $tool) {
+            $resetDate = $this->lastResetDate($tool->id);
+            $counted = array_sum(array_map(
+                fn (array $row): int => $resetDate === null || $row['usage_date'] >= $resetDate ? (int) $row['qty'] : 0,
+                $newRowsByTool[$tool->id],
+            ));
+
+            $result[$tool->id] = [
+                'life_used_before' => (int) $tool->life_used,
+                'life_used_after' => $this->recalculate($tool, excludeImportPeriod: $period) + $counted,
+                'last_reset_date' => $resetDate,
+            ];
+        }
+
+        return $result;
+    }
+
+    private function lastResetDate(int $toolId): ?string
+    {
+        return ToolUsageLog::query()->active()
+            ->where('tool_id', $toolId)
+            ->where('type', UsageType::Reset->value)
+            ->orderByDesc('usage_date')->orderByDesc('id')
+            ->first(['usage_date'])?->usage_date?->toDateString();
     }
 
     /**
@@ -292,7 +387,7 @@ final class ToolLifeService
                 $log->notes ?? '',
             ));
 
-            return $this->write(
+            $corrected = $this->write(
                 toolId: $tool->id,
                 type: UsageType::Usage,
                 usageDate: $usageDate,
@@ -303,13 +398,20 @@ final class ToolLifeService
                 source: $log->source,
                 corrects: $log,
             );
+
+            // Hasil koreksi baris Machine Result ikut periodenya → ikut diganti saat periode diupload ulang.
+            if ($log->import_period !== null) {
+                $corrected->forceFill(['import_period' => $log->import_period])->save();
+            }
+
+            return $corrected;
         }, StockMutationService::TRANSACTION_ATTEMPTS);
     }
 
     /**
      * Hitung ulang life terpakai dari log (dipakai juga untuk perbaikan data).
      */
-    public function recalculate(ToolsInventory $tool): int
+    public function recalculate(ToolsInventory $tool, ?string $excludeImportPeriod = null): int
     {
         $lastReset = ToolUsageLog::query()
             ->active()
@@ -322,7 +424,11 @@ final class ToolLifeService
         $usage = ToolUsageLog::query()
             ->active()
             ->where('tool_id', $tool->id)
-            ->where('type', UsageType::Usage->value);
+            ->where('type', UsageType::Usage->value)
+            // Preview import Machine Result: abaikan import lama periode itu (akan diganti).
+            ->when($excludeImportPeriod !== null, fn ($query) => $query->where(
+                fn ($q) => $q->whereNull('import_period')->orWhere('import_period', '<>', $excludeImportPeriod),
+            ));
 
         if ($lastReset !== null) {
             // Bandingkan dengan nilai mentah kolom agar format tanggal sama persis dengan yang tersimpan.

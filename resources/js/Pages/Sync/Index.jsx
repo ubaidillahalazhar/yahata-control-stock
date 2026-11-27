@@ -18,6 +18,11 @@ import { formatInt, formatMonth, formatSigned } from '@/lib/format';
 import { readStorage, STORAGE_KEYS, writeStorage } from '@/lib/storage';
 import { buildUrl } from '@/lib/urls';
 
+const currentMonth = (() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+})();
+
 export default function Index({ stats }) {
     const { flash } = usePage().props;
     const [preview, setPreview] = useState(flash?.opname_preview ?? null);
@@ -59,7 +64,7 @@ export default function Index({ stats }) {
 
     const importForm = useForm({ master_file: null, sync_stock: false, pic_name: readStorage(STORAGE_KEYS.picName) });
     const uploadForm = useForm({ opname_file: null });
-    const usageForm = useForm({ usage_file: null });
+    const usageForm = useForm({ usage_file: null, period: currentMonth });
     const applyForm = useForm({ pic_name: readStorage(STORAGE_KEYS.picName), reference_no: '', notes: '' });
 
     const submitImport = (event) => {
@@ -289,52 +294,54 @@ export default function Index({ stats }) {
                     <CardHeader
                         icon={Gauge}
                         title="2. Import Pemakaian Life Time (Day)"
-                        subtitle="Download template → isi pemakaian → upload → review → terapkan"
+                        subtitle="Export Machine Result → pilih periode → upload → review → terapkan"
                     />
                     <div className="space-y-5 p-5">
-                        <div className="flex items-start gap-3 rounded-md border border-slate-200 p-4">
-                            <StepNumber>A</StepNumber>
-                            <div className="flex-1">
-                                <p className="text-sm font-bold">Download Template Pemakaian</p>
-                                <p className="mb-3 text-xs text-slate-500">
-                                    Wajib: <b>Tools Name YES</b>, <b>Tanggal Pemakaian</b>, <b>Jumlah Terpakai</b>,{' '}
-                                    <b>Nama PIC</b> · opsional: Catatan. Tools Name YES tersedia sebagai dropdown.
-                                </p>
-                                <Button as="a" href="/sync/usage-template" variant="dark" size="sm">
-                                    <FileDown className="size-4" /> Download Template (.xlsx)
-                                </Button>
-                            </div>
-                        </div>
-
                         <form
                             onSubmit={submitUsagePreview}
                             className="flex items-start gap-3 rounded-md border border-slate-200 p-4"
                         >
-                            <StepNumber>B</StepNumber>
+                            <StepNumber>A</StepNumber>
                             <div className="flex-1 space-y-3">
                                 <div>
-                                    <p className="text-sm font-bold">Upload & Review</p>
+                                    <p className="text-sm font-bold">Upload Machine Result & Review</p>
                                     <p className="text-xs text-slate-500">
-                                        Belum mengubah data. Bila ada 1 baris salah, tidak ada yang dimasukkan. Ganti
-                                        Tool tetap diinput lewat aplikasi.
+                                        Upload export <b>Machine Result</b> apa adanya (.xls/.xlsx). Hanya baris{' '}
+                                        <b>End</b> di periode terpilih yang dihitung: tiap baris End menambah life{' '}
+                                        <b>semua tool</b> dengan Machine Name + Part No. yang sama. Belum mengubah data
+                                        sampai Anda klik Terapkan. Ganti Tool tetap diinput lewat aplikasi.
                                     </p>
                                 </div>
-                                <Field error={usageForm.errors.usage_file}>
-                                    <input
-                                        ref={usageInput}
-                                        type="file"
-                                        accept=".xlsx,.xls"
-                                        onChange={(event) =>
-                                            usageForm.setData('usage_file', event.target.files?.[0] ?? null)
-                                        }
-                                        className="block w-full cursor-pointer rounded-md border border-slate-300 bg-white text-sm file:mr-3 file:border-0 file:bg-blue-600 file:px-4 file:py-2.5 file:font-semibold file:text-white"
-                                    />
-                                </Field>
+                                <div className="grid gap-3 sm:grid-cols-[180px_1fr]">
+                                    <Field label="Periode (bulan)" error={usageForm.errors.period}>
+                                        <Input
+                                            type="month"
+                                            value={usageForm.data.period}
+                                            max={currentMonth}
+                                            onChange={(event) => usageForm.setData('period', event.target.value)}
+                                        />
+                                    </Field>
+                                    <Field label="File Machine Result" error={usageForm.errors.usage_file}>
+                                        <input
+                                            ref={usageInput}
+                                            type="file"
+                                            accept=".xlsx,.xls"
+                                            onChange={(event) =>
+                                                usageForm.setData('usage_file', event.target.files?.[0] ?? null)
+                                            }
+                                            className="block w-full cursor-pointer rounded-md border border-slate-300 bg-white text-sm file:mr-3 file:border-0 file:bg-blue-600 file:px-4 file:py-2.5 file:font-semibold file:text-white"
+                                        />
+                                    </Field>
+                                </div>
+                                <p className="text-xs text-amber-800">
+                                    Upload ulang periode yang sama <b>menggantikan</b> import sebelumnya (tidak dobel).
+                                    Karena itu, tiap file harus berisi <b>semua mesin</b> untuk periode tersebut.
+                                </p>
                                 <Button
                                     type="submit"
                                     size="sm"
                                     loading={usageForm.processing}
-                                    disabled={!usageForm.data.usage_file}
+                                    disabled={!usageForm.data.usage_file || !usageForm.data.period}
                                 >
                                     <FileUp className="size-4" /> Upload & Review
                                 </Button>
@@ -345,15 +352,22 @@ export default function Index({ stats }) {
                             <div className="rounded-md border border-emerald-300 bg-emerald-50 p-4">
                                 <p className="flex items-center gap-2 text-sm font-bold text-emerald-800">
                                     <CircleCheck className="size-4" /> Batch{' '}
-                                    <span className="font-mono">{usageResult.batch_no}</span> diterapkan
+                                    <span className="font-mono">{usageResult.batch_no}</span> diterapkan · periode{' '}
+                                    {formatMonth(`${usageResult.period}-01`)}
                                 </p>
+                                {usageResult.replaced > 0 && (
+                                    <p className="mt-1 text-xs text-emerald-900">
+                                        {formatInt(usageResult.replaced)} baris import lama periode ini dibatalkan (
+                                        {usageResult.replaced_batches.join(', ')}).
+                                    </p>
+                                )}
                                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                                    <Stat label="Baris" value={formatInt(usageResult.inserted)} className="bg-white" />
+                                    <Stat label="Baris pemakaian" value={formatInt(usageResult.inserted)} className="bg-white" />
                                     <Stat label="Tool" value={formatInt(usageResult.tools)} className="bg-white" />
                                     <Stat label="Total pcs" value={formatInt(usageResult.total_qty)} className="bg-white" />
                                     <Stat
-                                        label="Duplikat dilewati"
-                                        value={formatInt(usageResult.skipped_duplicates)}
+                                        label="Ditahan (tidak masuk)"
+                                        value={formatInt(usageResult.skipped_held)}
                                         className="bg-white"
                                     />
                                 </div>

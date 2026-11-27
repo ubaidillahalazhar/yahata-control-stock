@@ -99,7 +99,6 @@ Route::middleware(['auth', 'account.usable'])->group(function () {
         Route::post('/sync/master-import', [ExcelSyncController::class, 'importMaster'])->name('sync.master-import');
         Route::get('/sync/control-stock-export', [ExcelSyncController::class, 'exportControlStock'])->name('sync.control-stock-export');
         Route::get('/sync/master-template', [ExcelSyncController::class, 'masterTemplate'])->name('sync.master-template');
-        Route::get('/sync/usage-template', [UsageImportController::class, 'template'])->name('usage-import.template');
         Route::post('/sync/usage-preview', [UsageImportController::class, 'preview'])->name('usage-import.preview');
         Route::post('/sync/usage-apply', [UsageImportController::class, 'apply'])->name('usage-import.apply');
         Route::get('/sync/opname-template', [StockOpnameController::class, 'template'])->name('opname.template');
